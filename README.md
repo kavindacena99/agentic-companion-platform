@@ -5,3 +5,7 @@ A public mobile AI agent platform where users can create emotionally intelligent
 
 Companio
 The AI person who understands you.
+
+
+
+Hi
