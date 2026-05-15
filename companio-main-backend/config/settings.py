@@ -29,14 +29,18 @@ def env_list(name, default=''):
     ]
 
 
+def env_required(name):
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f'{name} must be set in the environment.')
+    return value
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
-
-if not SECRET_KEY:
-    raise RuntimeError('DJANGO_SECRET_KEY must be set in the environment.')
+SECRET_KEY = env_required('DJANGO_SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() == 'true'
@@ -91,9 +95,9 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.getenv('MYSQL_DATABASE'),
-        'USER': os.getenv('MYSQL_USER'),
-        'PASSWORD': os.getenv('MYSQL_PASSWORD'),
+        'NAME': env_required('MYSQL_DATABASE'),
+        'USER': env_required('MYSQL_USER'),
+        'PASSWORD': env_required('MYSQL_PASSWORD'),
         'HOST': os.getenv('MYSQL_HOST', '127.0.0.1'),
         'PORT': os.getenv('MYSQL_PORT', '3306'),
         'OPTIONS': {
