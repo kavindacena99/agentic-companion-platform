@@ -78,6 +78,24 @@ Generate safe response
 Decide whether to save new memory
     ↓
 Update memory if needed
+```
 
+---
 
-for check
+## Backend Configuration
+
+The Django backend reads configuration from `companio-main-backend/.env`.
+Use `companio-main-backend/.env.example` as the template for local setup.
+
+Required environment variables:
+
+- `DJANGO_SECRET_KEY`
+- `DJANGO_DEBUG`
+- `DJANGO_ALLOWED_HOSTS`
+- `MYSQL_DATABASE`
+- `MYSQL_USER`
+- `MYSQL_PASSWORD`
+- `MYSQL_HOST`
+- `MYSQL_PORT`
+
+The backend is configured for MySQL. SQLite database files are ignored and should not be used for main backend development.
