@@ -49,7 +49,15 @@ INSTALLED_APPS = [
     'apps.common',
     'apps.accounts',
     'apps.profiles',
+    'apps.agent_gateway',
     'apps.agents',
+    'apps.usage',
+    'apps.chats',
+    'apps.safety',
+    'apps.subscriptions',
+    'apps.notifications',
+    'apps.app_config',
+    'apps.audit_logs',
 ]
 
 MIDDLEWARE = [
@@ -131,6 +139,10 @@ AGENT_PLATFORM_BASE_URL = os.getenv(
     'AGENT_PLATFORM_BASE_URL',
     'http://127.0.0.1:9000',
 )
+AGENT_PLATFORM_SERVICE_KEY = os.getenv('AGENT_PLATFORM_SERVICE_KEY', '')
+AGENT_PLATFORM_TIMEOUT_SECONDS = env_int('AGENT_PLATFORM_TIMEOUT_SECONDS', 5)
+AGENT_PLATFORM_USE_MOCK = env_bool('AGENT_PLATFORM_USE_MOCK', 'True')
+FREE_DAILY_MESSAGE_LIMIT = env_int('FREE_DAILY_MESSAGE_LIMIT', 20)
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (

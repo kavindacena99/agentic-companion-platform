@@ -23,4 +23,10 @@ urlpatterns = [
     path('api/auth/', include('apps.accounts.urls')),
     path('api/profile/', include('apps.profiles.urls')),
     path('api/agents/', include('apps.agents.urls')),
+    path('api/usage/', include('apps.usage.urls')),
+    path('api/chats/', include('apps.chats.urls')),
+    path('api/safety-reports/', include('apps.safety.urls')),
+    path('api/subscriptions/', include('apps.subscriptions.urls')),
+    path('api/notifications/', include('apps.notifications.urls')),
+    path('api/app-config/', include('apps.app_config.urls')),
 ]

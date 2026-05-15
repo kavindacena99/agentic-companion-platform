@@ -1,34 +1,32 @@
-from rest_framework import generics, status
+from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Agent
+from apps.audit_logs.services import create_audit_log
+
 from .serializers import (
-    AgentSerializer,
+    AgentAvailabilitySerializer,
     SelectAgentSerializer,
     SelectedAgentSerializer,
 )
 from .services import (
-    get_enabled_agent_by_id,
-    get_enabled_agents,
-    get_selected_agent,
+    get_agent_detail_for_user,
+    get_available_agents_for_user,
+    get_selected_agent_for_user,
     select_agent_for_user,
 )
 
 
-class AgentListView(generics.ListAPIView):
-    serializer_class = AgentSerializer
+class AgentListView(APIView):
+    def get(self, request):
+        agents = get_available_agents_for_user(request.user)
+        return Response(AgentAvailabilitySerializer(agents, many=True).data)
 
-    def get_queryset(self):
-        return get_enabled_agents()
 
-
-class AgentDetailView(generics.RetrieveAPIView):
-    serializer_class = AgentSerializer
-    queryset = Agent.objects.none()
-
-    def get_object(self):
-        return get_enabled_agent_by_id(self.kwargs['pk'])
+class AgentDetailView(APIView):
+    def get(self, request, pk):
+        agent = get_agent_detail_for_user(request.user, pk)
+        return Response(AgentAvailabilitySerializer(agent).data)
 
 
 class SelectAgentView(APIView):
@@ -39,16 +37,25 @@ class SelectAgentView(APIView):
             user=request.user,
             agent_key=serializer.validated_data['agent_key'],
         )
+        response_data = {
+            'agent': selection.agent_runtime_data,
+            'selected_at': selection.selected_at,
+        }
+        create_audit_log(
+            user=request.user,
+            event_type='agent_selected',
+            request=request,
+            object_type='Agent',
+            object_id=selection.agent_id,
+            metadata={'agent_key': selection.agent.key},
+        )
         return Response(
-            SelectedAgentSerializer(selection).data,
+            SelectedAgentSerializer(response_data).data,
             status=status.HTTP_201_CREATED,
         )
 
 
 class SelectedAgentView(APIView):
     def get(self, request):
-        selection = get_selected_agent(request.user)
-        if not selection:
-            return Response({'agent': None, 'selected_at': None})
-
+        selection = get_selected_agent_for_user(request.user)
         return Response(SelectedAgentSerializer(selection).data)
