@@ -78,3 +78,6 @@ Generate safe response
 Decide whether to save new memory
     ↓
 Update memory if needed
+
+
+for check
