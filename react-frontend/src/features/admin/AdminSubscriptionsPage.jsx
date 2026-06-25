@@ -1,43 +1,68 @@
-import { AdminPlaceholder } from '../../components/admin/AdminPlaceholder'
+import { FiRefreshCw } from 'react-icons/fi'
 import { PageHeader } from '../../components/admin/PageHeader'
+import { Badge } from '../../components/ui/Badge'
+import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { StateBlock } from '../../components/common/StateBlock'
 import { useAsync } from '../../hooks/useAsync'
-import { subscriptionService } from '../../services/subscriptionService'
-import { pendingAdminEndpoints } from '../../services/adminService'
+import { adminService } from '../../services/adminService'
+
+const statusTone = {
+  active: 'green',
+  trialing: 'blue',
+  expired: 'rose',
+  cancelled: 'rose',
+  past_due: 'amber',
+  inactive: 'slate',
+}
 
 export function AdminSubscriptionsPage() {
-  const { data, loading, error } = useAsync(subscriptionService.getCurrentSubscription, [])
+  const { data: subscriptions, loading, error, run } = useAsync(adminService.listAllSubscriptions, [])
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Subscription records">
-        Global subscription management requires admin endpoints. Current view shows only the logged-in user's status.
+      <PageHeader
+        title="Subscription records"
+        action={
+          <Button variant="secondary" onClick={run} disabled={loading}>
+            <FiRefreshCw /> Refresh
+          </Button>
+        }
+      >
+        All user subscriptions from the Main Backend. Manual or provider-assigned plans appear here.
       </PageHeader>
-      <AdminPlaceholder title="Global subscription endpoint pending" endpoint={pendingAdminEndpoints.subscriptions}>
-        Needed for viewing active, expired, cancelled, and manually assigned subscriptions across users.
-      </AdminPlaceholder>
-      {error ? <StateBlock type="error" title="Could not load current subscription">{error}</StateBlock> : null}
-      {loading ? <p className="text-sm text-slate-500">Loading current subscription...</p> : null}
-      {data ? (
-        <Card>
-          <h2 className="font-bold">Current user's subscription</h2>
-          <div className="mt-4 grid gap-3 text-sm md:grid-cols-3">
-            <Info label="Plan" value={data.plan_name} />
-            <Info label="Status" value={data.status} />
-            <Info label="Daily limit" value={data.daily_message_limit || 'Unlimited'} />
-          </div>
-        </Card>
-      ) : null}
-    </div>
-  )
-}
 
-function Info({ label, value }) {
-  return (
-    <div className="rounded-2xl bg-slate-50 p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 font-bold text-slate-950">{value}</p>
+      {error ? <StateBlock type="error" title="Could not load subscriptions">{error}</StateBlock> : null}
+      {loading ? <p className="text-sm text-slate-500">Loading subscriptions...</p> : null}
+      {!loading && subscriptions?.length === 0 ? (
+        <StateBlock title="No subscriptions found">Users on the free plan do not appear here.</StateBlock>
+      ) : null}
+
+      <div className="grid gap-4">
+        {(subscriptions || []).map((sub) => (
+          <Card key={sub.id}>
+            <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
+              <div>
+                <p className="font-semibold text-slate-950">{sub.user_email}</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  {sub.plan_name} · {sub.provider}
+                  {sub.provider_subscription_id ? ` · ${sub.provider_subscription_id}` : ''}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone={statusTone[sub.status] || 'slate'}>{sub.status}</Badge>
+                {sub.expires_at ? (
+                  <span className="text-xs text-slate-500">
+                    Expires {new Date(sub.expires_at).toLocaleDateString()}
+                  </span>
+                ) : (
+                  <span className="text-xs text-slate-500">No expiry</span>
+                )}
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
     </div>
   )
 }

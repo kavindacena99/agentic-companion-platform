@@ -1,45 +1,66 @@
-import { agentService } from './agentService'
-import { appConfigService } from './appConfigService'
-import { safetyService } from './safetyService'
-import { subscriptionService } from './subscriptionService'
-import { usageService } from './usageService'
+import { apiClient } from './apiClient'
 
+// Still-pending endpoints (no backend support yet)
 export const pendingAdminEndpoints = {
-  users: '/api/admin/users/',
-  agents: '/api/admin/agents/',
-  plans: '/api/admin/plans/',
-  subscriptions: '/api/admin/subscriptions/',
-  usage: '/api/admin/usage/',
-  safetyReports: '/api/admin/safety-reports/',
-  appConfig: '/api/admin/app-config/',
-  featureFlags: '/api/admin/feature-flags/',
   llmProviders: '/api/admin/llm-providers/',
 }
 
 export const adminService = {
-  async overview() {
-    const [agents, plans, publicConfig, usage, safetyReports] = await Promise.allSettled([
-      agentService.listAgents(),
-      subscriptionService.listPlans(),
-      appConfigService.getPublicConfig(),
-      usageService.getUsage(),
-      safetyService.listMyReports(),
-    ])
-
-    return {
-      agents: agents.status === 'fulfilled' ? agents.value : [],
-      plans: plans.status === 'fulfilled' ? plans.value : [],
-      publicConfig: publicConfig.status === 'fulfilled' ? publicConfig.value : null,
-      currentUserUsage: usage.status === 'fulfilled' ? usage.value : null,
-      mySafetyReports: safetyReports.status === 'fulfilled' ? safetyReports.value : [],
-      errors: [agents, plans, publicConfig, usage, safetyReports]
-        .filter((result) => result.status === 'rejected')
-        .map((result) => result.reason),
-    }
+  // ── Dashboard stats ────────────────────────────────────────────────────────
+  getStats() {
+    return apiClient.get('/admin/stats/').then((r) => r.data)
   },
-  listVisibleAgents: agentService.listAgents,
-  listActivePlans: subscriptionService.listPlans,
-  getPublicAppConfig: appConfigService.getPublicConfig,
-  listMySafetyReports: safetyService.listMyReports,
-  getCurrentUserUsage: usageService.getUsage,
+
+  // ── Users ─────────────────────────────────────────────────────────────────
+  listUsers(params = {}) {
+    return apiClient.get('/admin/users/', { params }).then((r) => r.data)
+  },
+  updateUser(id, data) {
+    return apiClient.patch(`/admin/users/${id}/`, data).then((r) => r.data)
+  },
+
+  // ── Agents (admin — includes disabled) ────────────────────────────────────
+  listAllAgents() {
+    return apiClient.get('/admin/agents/').then((r) => r.data)
+  },
+  updateAgent(key, data) {
+    return apiClient.patch(`/admin/agents/${key}/`, data).then((r) => r.data)
+  },
+
+  // ── Plans (admin — includes inactive) ─────────────────────────────────────
+  listAllPlans() {
+    return apiClient.get('/admin/plans/').then((r) => r.data)
+  },
+  updatePlan(code, data) {
+    return apiClient.patch(`/admin/plans/${code}/`, data).then((r) => r.data)
+  },
+
+  // ── Subscriptions ──────────────────────────────────────────────────────────
+  listAllSubscriptions(params = {}) {
+    return apiClient.get('/admin/subscriptions/', { params }).then((r) => r.data)
+  },
+
+  // ── Safety reports ─────────────────────────────────────────────────────────
+  listAllSafetyReports(params = {}) {
+    return apiClient.get('/admin/safety-reports/', { params }).then((r) => r.data)
+  },
+  reviewSafetyReport(id, data) {
+    return apiClient.patch(`/admin/safety-reports/${id}/`, data).then((r) => r.data)
+  },
+
+  // ── App config ─────────────────────────────────────────────────────────────
+  listAppConfigs() {
+    return apiClient.get('/admin/app-config/').then((r) => r.data)
+  },
+  updateAppConfig(key, data) {
+    return apiClient.patch(`/admin/app-config/${key}/`, data).then((r) => r.data)
+  },
+
+  // ── Feature flags ──────────────────────────────────────────────────────────
+  listFeatureFlags() {
+    return apiClient.get('/admin/feature-flags/').then((r) => r.data)
+  },
+  updateFeatureFlag(key, data) {
+    return apiClient.patch(`/admin/feature-flags/${key}/`, data).then((r) => r.data)
+  },
 }
