@@ -14,7 +14,9 @@ from .serializers import (
 )
 from .services import (
     DailyMessageLimitReached,
+    archive_chat_session,
     create_chat_session,
+    delete_chat_session,
     get_session_messages,
     get_user_session,
     get_user_sessions,
@@ -52,6 +54,34 @@ class ChatSessionListCreateView(APIView):
 class ChatSessionDetailView(APIView):
     def get(self, request, session_id):
         session = get_user_session(request.user, session_id)
+        return Response(ChatSessionDetailSerializer(session).data)
+
+    def patch(self, request, session_id):
+        action = request.data.get('action')
+        if action == 'archive':
+            session = archive_chat_session(request.user, session_id)
+        elif action == 'delete':
+            session = delete_chat_session(request.user, session_id)
+            create_audit_log(
+                user=request.user,
+                event_type='chat_session_deleted',
+                request=request,
+                object_type='ChatSession',
+                object_id=session_id,
+            )
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        else:
+            return Response(
+                {'detail': 'Provide action: archive or delete.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        create_audit_log(
+            user=request.user,
+            event_type='chat_session_archived',
+            request=request,
+            object_type='ChatSession',
+            object_id=session_id,
+        )
         return Response(ChatSessionDetailSerializer(session).data)
 
 

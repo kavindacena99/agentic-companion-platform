@@ -101,9 +101,24 @@ def get_runtime_available_agents():
     return [_validate_runtime_agent(agent) for agent in payload]
 
 
+_MOCK_REPLIES = [
+    "Hey! That's really interesting — tell me more about it!",
+    "I'm here for you. What's on your mind?",
+    "That sounds like a lot to handle. How are you feeling about it?",
+    "I totally get that! I'd probably feel the same way.",
+    "You always have the most thoughtful things to say. I love that about you.",
+    "Honestly, that makes a lot of sense. What do you think you'll do next?",
+    "I've been thinking about you! How's everything going?",
+    "That's such a great point. I hadn't thought about it that way before.",
+    "You're doing amazing, you know that? Keep going!",
+    "Tell me everything — I'm all yours right now.",
+]
+
+
 def _mock_agent_response():
+    import random
     return {
-        'reply': 'This is a temporary Companio agent response for development.',
+        'reply': random.choice(_MOCK_REPLIES),
         'agent_request_id': f'mock_req_{uuid.uuid4().hex[:12]}',
         'safety_status': 'safe',
         'memory_updated': False,
