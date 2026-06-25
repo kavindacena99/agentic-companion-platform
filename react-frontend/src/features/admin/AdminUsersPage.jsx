@@ -1,39 +1,84 @@
-import { AdminPlaceholder } from '../../components/admin/AdminPlaceholder'
+import { useState } from 'react'
+import { FiRefreshCw, FiShield, FiUser } from 'react-icons/fi'
 import { PageHeader } from '../../components/admin/PageHeader'
+import { Badge } from '../../components/ui/Badge'
+import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
-import { useAuth } from '../../context/AuthContext'
-import { pendingAdminEndpoints } from '../../services/adminService'
+import { StateBlock } from '../../components/common/StateBlock'
+import { useAsync } from '../../hooks/useAsync'
+import { getApiErrorMessage } from '../../services/apiClient'
+import { adminService } from '../../services/adminService'
 
 export function AdminUsersPage() {
-  const { user } = useAuth()
+  const [actionError, setActionError] = useState('')
+  const { data: users, loading, error, run, setData } = useAsync(adminService.listUsers, [])
+
+  async function toggleActive(user) {
+    setActionError('')
+    try {
+      const updated = await adminService.updateUser(user.id, { is_active: !user.is_active })
+      setData((current) => current.map((u) => (u.id === user.id ? { ...u, ...updated } : u)))
+    } catch (e) {
+      setActionError(getApiErrorMessage(e, 'Could not update user.'))
+    }
+  }
+
+  async function toggleRole(user) {
+    setActionError('')
+    const newRole = user.role === 'admin' ? 'user' : 'admin'
+    try {
+      const updated = await adminService.updateUser(user.id, { role: newRole })
+      setData((current) => current.map((u) => (u.id === user.id ? { ...u, ...updated } : u)))
+    } catch (e) {
+      setActionError(getApiErrorMessage(e, 'Could not update role.'))
+    }
+  }
 
   return (
     <div className="space-y-6">
-      <PageHeader title="User management">
-        View and manage user accounts once the Main Backend exposes admin user APIs.
+      <PageHeader
+        title="User management"
+        action={
+          <Button variant="secondary" onClick={run} disabled={loading}>
+            <FiRefreshCw /> Refresh
+          </Button>
+        }
+      >
+        All registered users. Toggle active status or admin role. Email cannot be changed here.
       </PageHeader>
-      <AdminPlaceholder title="User list endpoint pending" endpoint={pendingAdminEndpoints.users}>
-        The current API exposes only the authenticated user via `/api/auth/me/`. Listing all users, viewing user
-        profiles, and activating/deactivating users needs a protected admin endpoint.
-      </AdminPlaceholder>
-      <Card>
-        <h2 className="font-bold">Current admin user</h2>
-        <div className="mt-4 grid gap-3 text-sm md:grid-cols-2">
-          <Info label="Email" value={user?.email} />
-          <Info label="Username" value={user?.username} />
-          <Info label="Role" value={user?.role} />
-          <Info label="Active" value={user?.is_active ? 'Yes' : 'No'} />
-        </div>
-      </Card>
-    </div>
-  )
-}
 
-function Info({ label, value }) {
-  return (
-    <div className="rounded-2xl bg-slate-50 p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 font-bold text-slate-950">{value || 'Not available'}</p>
+      {actionError ? <p className="rounded-xl bg-rose-50 p-3 text-sm font-medium text-rose-700">{actionError}</p> : null}
+      {error ? <StateBlock type="error" title="Could not load users">{error}</StateBlock> : null}
+      {loading ? <p className="text-sm text-slate-500">Loading users...</p> : null}
+      {!loading && users?.length === 0 ? <StateBlock title="No users found" /> : null}
+
+      <div className="grid gap-4">
+        {(users || []).map((user) => (
+          <Card key={user.id}>
+            <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+              <div className="flex items-center gap-4">
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-950 text-white">
+                  {user.role === 'admin' ? <FiShield className="h-4 w-4" /> : <FiUser className="h-4 w-4" />}
+                </div>
+                <div>
+                  <p className="font-semibold text-slate-950">{user.email}</p>
+                  <p className="text-sm text-slate-500">@{user.username}{user.full_name ? ` · ${user.full_name}` : ''}</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone={user.is_active ? 'green' : 'rose'}>{user.is_active ? 'Active' : 'Inactive'}</Badge>
+                <Badge tone={user.role === 'admin' ? 'amber' : 'slate'}>{user.role}</Badge>
+                <Button variant="secondary" onClick={() => toggleActive(user)}>
+                  {user.is_active ? 'Deactivate' : 'Activate'}
+                </Button>
+                <Button variant="secondary" onClick={() => toggleRole(user)}>
+                  {user.role === 'admin' ? 'Remove admin' : 'Make admin'}
+                </Button>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
     </div>
   )
 }

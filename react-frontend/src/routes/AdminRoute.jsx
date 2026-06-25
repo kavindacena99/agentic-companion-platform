@@ -1,11 +1,16 @@
 import { Navigate, Outlet } from 'react-router-dom'
+import { LoadingScreen } from '../components/common/LoadingScreen'
 import { StateBlock } from '../components/common/StateBlock'
 import { Button } from '../components/ui/Button'
 import { useAuth } from '../context/AuthContext'
 
 export function AdminRoute() {
-  const { user, isAuthenticated } = useAuth()
+  const { user, isAuthenticated, isLoading } = useAuth()
   const isAdmin = user?.role === 'admin' || user?.is_staff
+
+  if (isLoading) {
+    return <LoadingScreen label="Restoring admin session" />
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
