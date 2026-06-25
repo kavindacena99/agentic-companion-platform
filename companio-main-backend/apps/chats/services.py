@@ -53,6 +53,22 @@ def get_user_session(user, session_id):
         raise exceptions.NotFound('Chat session not found.') from exc
 
 
+def archive_chat_session(user, session_id):
+    session = get_user_session(user, session_id)
+    if session.status == ChatSession.Status.DELETED:
+        raise exceptions.ValidationError({'session': 'Chat session is already deleted.'})
+    session.status = ChatSession.Status.ARCHIVED
+    session.save(update_fields=['status', 'updated_at'])
+    return session
+
+
+def delete_chat_session(user, session_id):
+    session = get_user_session(user, session_id)
+    session.status = ChatSession.Status.DELETED
+    session.save(update_fields=['status', 'updated_at'])
+    return session
+
+
 def get_session_messages(user, session_id):
     session = get_user_session(user, session_id)
     return session.messages.all()

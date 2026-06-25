@@ -48,6 +48,18 @@ class RegisterSerializer(serializers.ModelSerializer):
         }
 
 
+class UserUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['username', 'full_name']
+
+    def validate_username(self, value):
+        qs = User.objects.filter(username=value).exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError('This username is already taken.')
+        return value
+
+
 class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)

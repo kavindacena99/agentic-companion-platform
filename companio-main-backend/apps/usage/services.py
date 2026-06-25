@@ -22,6 +22,9 @@ def get_or_create_daily_usage(user, date=None):
         date=usage_date,
         defaults={'message_limit': message_limit},
     )
+    if not _created and usage.message_limit != message_limit:
+        usage.message_limit = message_limit
+        usage.save(update_fields=['message_limit'])
     return usage
 
 
