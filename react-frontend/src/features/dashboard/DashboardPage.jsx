@@ -57,28 +57,28 @@ export function DashboardPage() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold">Recent chats</h2>
-              <p className="text-sm text-slate-500">Continue a session or start a new conversation.</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Continue a session or start a new conversation.</p>
             </div>
             <Link to="/chat">
               <Button variant="secondary">Open chat</Button>
             </Link>
           </div>
           <div className="mt-5 space-y-3">
-            {loading ? <p className="text-sm text-slate-500">Loading sessions...</p> : null}
+            {loading ? <p className="text-sm text-slate-500 dark:text-slate-400">Loading sessions...</p> : null}
             {!loading && recentSessions.length === 0 ? (
               <StateBlock title="No chat sessions yet">Choose an agent and start your first Companio conversation.</StateBlock>
             ) : null}
             {recentSessions.map((session) => (
               <Link
-                className="flex items-center justify-between rounded-2xl border border-slate-200 p-4 transition hover:border-cyan-300 hover:bg-cyan-50/40"
+                className="flex items-center justify-between rounded-2xl border border-slate-200 p-4 transition hover:border-cyan-300 hover:bg-cyan-50/40 dark:border-slate-700 dark:hover:border-cyan-800 dark:hover:bg-cyan-950/20"
                 key={session.id}
                 to={`/chat/${session.id}`}
               >
                 <div>
-                  <p className="font-semibold text-slate-950">{session.title}</p>
-                  <p className="text-sm text-slate-500">{session.agent_display_name}</p>
+                  <p className="font-semibold text-slate-950 dark:text-white">{session.title}</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">{session.agent_display_name}</p>
                 </div>
-                <FiArrowRight className="text-slate-400" />
+                <FiArrowRight className="text-slate-400 dark:text-slate-500" />
               </Link>
             ))}
           </div>
@@ -102,9 +102,9 @@ function MetricCard({ label, value, icon: Icon, to }) {
   return (
     <Link to={to}>
       <Card className="h-full transition hover:border-cyan-300 hover:shadow-md">
-        <Icon className="mb-4 h-6 w-6 text-cyan-600" />
-        <p className="text-sm text-slate-500">{label}</p>
-        <p className="mt-1 text-xl font-bold text-slate-950">{value}</p>
+        <Icon className="mb-4 h-6 w-6 text-cyan-600 dark:text-cyan-400" />
+        <p className="text-sm text-slate-500 dark:text-slate-400">{label}</p>
+        <p className="mt-1 text-xl font-bold text-slate-950 dark:text-white">{value}</p>
       </Card>
     </Link>
   )
@@ -112,8 +112,8 @@ function MetricCard({ label, value, icon: Icon, to }) {
 
 function ChecklistItem({ done, label, to }) {
   return (
-    <Link className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2" to={to}>
-      <span className="text-sm font-medium text-slate-700">{label}</span>
+    <Link className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 dark:bg-slate-800" to={to}>
+      <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{label}</span>
       <Badge tone={done ? 'green' : 'amber'}>{done ? 'Done' : 'Needs test'}</Badge>
     </Link>
   )

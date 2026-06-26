@@ -11,6 +11,7 @@ import { useProduct } from '../../context/ProductContext'
 import { getApiErrorMessage } from '../../services/apiClient'
 import { chatService } from '../../services/chatService'
 import { safetyService } from '../../services/safetyService'
+import { getPersonaColor } from '../../utils/persona'
 
 const reportCategories = [
   ['unsafe_response', 'Unsafe response'],
@@ -38,6 +39,10 @@ export function ChatPage() {
   const listEndRef = useRef(null)
 
   const activeSessionId = sessionId ? Number(sessionId) : null
+  const personaColor = getPersonaColor(
+    selectedAgent?.agent?.agent_type,
+    selectedAgent?.agent?.agent_key,
+  )
 
   useEffect(() => {
     loadBase()
@@ -127,7 +132,7 @@ export function ChatPage() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-bold">Chats</h1>
-            <p className="text-sm text-slate-500">Backend chat sessions</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Backend chat sessions</p>
           </div>
           <Button variant="accent" onClick={createSession}>
             <FiPlus /> New
@@ -135,9 +140,14 @@ export function ChatPage() {
         </div>
 
         {selectedAgent?.agent ? (
-          <div className="mt-4 rounded-2xl bg-cyan-50 p-3">
-            <p className="text-sm font-semibold">{selectedAgent.agent.display_name}</p>
-            <p className="text-xs text-slate-600">{selectedAgent.agent.availability_status}</p>
+          <div
+            className="mt-4 rounded-2xl p-3"
+            style={{ backgroundColor: `${personaColor}18`, borderLeft: `3px solid ${personaColor}` }}
+          >
+            <p className="text-sm font-semibold" style={{ color: personaColor }}>
+              {selectedAgent.agent.display_name}
+            </p>
+            <p className="text-xs text-slate-600 dark:text-slate-400">{selectedAgent.agent.availability_status}</p>
           </div>
         ) : (
           <StateBlock
@@ -153,31 +163,38 @@ export function ChatPage() {
         )}
 
         <div className="mt-4 flex-1 space-y-2 overflow-y-auto">
-          {loading ? <p className="text-sm text-slate-500">Loading sessions...</p> : null}
+          {loading ? <p className="text-sm text-slate-500 dark:text-slate-400">Loading sessions...</p> : null}
           {!loading && sessions.length === 0 ? (
-            <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-500">No sessions yet.</p>
+            <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-500 dark:bg-slate-800 dark:text-slate-400">No sessions yet.</p>
           ) : null}
-          {sessions.map((item) => (
-            <Link
-              className={`block rounded-2xl border p-3 transition ${
-                Number(sessionId) === item.id ? 'border-cyan-300 bg-cyan-50' : 'border-slate-200 hover:bg-slate-50'
-              }`}
-              key={item.id}
-              to={`/chat/${item.id}`}
-            >
-              <p className="truncate text-sm font-semibold text-slate-950">{item.title}</p>
-              <p className="text-xs text-slate-500">{item.agent_display_name}</p>
-            </Link>
-          ))}
+          {sessions.map((item) => {
+            const sessionPersonaColor = getPersonaColor(item.agent_type, item.agent_key)
+            const isActive = Number(sessionId) === item.id
+            return (
+              <Link
+                className={`block rounded-2xl border p-3 transition ${
+                  isActive
+                    ? 'border-slate-200 dark:border-slate-700'
+                    : 'border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800'
+                }`}
+                style={isActive ? { borderColor: sessionPersonaColor, backgroundColor: `${sessionPersonaColor}12` } : undefined}
+                key={item.id}
+                to={`/chat/${item.id}`}
+              >
+                <p className="truncate text-sm font-semibold text-slate-950 dark:text-white">{item.title}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{item.agent_display_name}</p>
+              </Link>
+            )
+          })}
         </div>
       </Card>
 
       <Card className="flex min-h-[620px] flex-col p-0">
-        <div className="border-b border-slate-200 p-4">
+        <div className="border-b border-slate-200 p-4 dark:border-slate-700">
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
             <div>
               <h2 className="text-lg font-bold">{session?.title || 'Select or start a chat'}</h2>
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-slate-500 dark:text-slate-400">
                 AI companion responses are generated through the Main Backend only.
               </p>
             </div>
@@ -189,9 +206,13 @@ export function ChatPage() {
           </div>
         </div>
 
-        {error ? <p className="m-4 rounded-xl bg-rose-50 p-3 text-sm font-medium text-rose-700">{error}</p> : null}
+        {error ? (
+          <p className="m-4 rounded-xl bg-rose-50 p-3 text-sm font-medium text-rose-700 dark:bg-rose-950 dark:text-rose-400">
+            {error}
+          </p>
+        ) : null}
 
-        <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-4">
+        <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 p-4 dark:bg-slate-950">
           {!activeSessionId ? (
             <StateBlock
               title="Ready when you are"
@@ -210,19 +231,19 @@ export function ChatPage() {
           ) : null}
 
           {messages.map((item) => (
-            <MessageBubble key={item.id} message={item} onReport={() => setReportMessage(item)} />
+            <MessageBubble key={item.id} message={item} personaColor={personaColor} onReport={() => setReportMessage(item)} />
           ))}
           {sending ? (
-            <div className="max-w-[78%] rounded-2xl bg-white p-4 text-sm text-slate-500 shadow-sm">
+            <div className="max-w-[78%] rounded-2xl bg-white p-4 text-sm text-slate-500 shadow-sm dark:bg-slate-800 dark:text-slate-400">
               Waiting for agent response...
             </div>
           ) : null}
           <div ref={listEndRef} />
         </div>
 
-        <form className="border-t border-slate-200 p-4" onSubmit={sendMessage}>
+        <form className="border-t border-slate-200 p-4 dark:border-slate-700" onSubmit={sendMessage}>
           {!canSend && activeSessionId ? (
-            <p className="mb-3 rounded-xl bg-amber-50 p-3 text-sm font-medium text-amber-800">
+            <p className="mb-3 rounded-xl bg-amber-50 p-3 text-sm font-medium text-amber-800 dark:bg-amber-950/30 dark:text-amber-400">
               Usage limit reached for today. Check Usage or Plans for the current backend state.
             </p>
           ) : null}
@@ -247,14 +268,15 @@ export function ChatPage() {
   )
 }
 
-function MessageBubble({ message, onReport }) {
+function MessageBubble({ message, personaColor, onReport }) {
   const isUser = message.sender === 'user'
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <article
         className={`max-w-[84%] rounded-2xl p-4 shadow-sm ${
-          isUser ? 'bg-slate-950 text-white' : 'bg-white text-slate-950'
+          isUser ? 'bg-slate-950 text-white' : 'bg-white text-slate-950 dark:bg-slate-800 dark:text-white'
         }`}
+        style={!isUser && personaColor ? { borderLeft: `3px solid ${personaColor}` } : undefined}
       >
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs font-semibold uppercase tracking-wide opacity-70">{isUser ? 'You' : 'Companio agent'}</p>
@@ -264,7 +286,7 @@ function MessageBubble({ message, onReport }) {
         {!isUser ? (
           <div className="mt-3 flex items-center justify-between gap-3">
             <Badge tone={message.safety_status === 'safe' ? 'green' : 'amber'}>{message.safety_status}</Badge>
-            <button className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600" onClick={onReport} type="button">
+            <button className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600 dark:text-rose-400" onClick={onReport} type="button">
               <FiAlertTriangle /> Report
             </button>
           </div>
@@ -301,7 +323,7 @@ function SafetyReportModal({ message, onClose }) {
     <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/60 px-4">
       <Card className="w-full max-w-lg">
         <h2 className="text-xl font-bold">Report unsafe response</h2>
-        <p className="mt-2 text-sm text-slate-600">This submits a SafetyReport through `/api/safety-reports/`.</p>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">This submits a SafetyReport through `/api/safety-reports/`.</p>
         <form className="mt-5 space-y-4" onSubmit={submitReport}>
           <FormField label="Category">
             <select className={inputClass} value={category} onChange={(event) => setCategory(event.target.value)}>
@@ -320,8 +342,12 @@ function SafetyReportModal({ message, onClose }) {
               onChange={(event) => setDescription(event.target.value)}
             />
           </FormField>
-          {error ? <p className="rounded-xl bg-rose-50 p-3 text-sm font-medium text-rose-700">{error}</p> : null}
-          {status ? <p className="rounded-xl bg-emerald-50 p-3 text-sm font-medium text-emerald-700">{status}</p> : null}
+          {error ? (
+            <p className="rounded-xl bg-rose-50 p-3 text-sm font-medium text-rose-700 dark:bg-rose-950 dark:text-rose-400">{error}</p>
+          ) : null}
+          {status ? (
+            <p className="rounded-xl bg-emerald-50 p-3 text-sm font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">{status}</p>
+          ) : null}
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={onClose}>Cancel</Button>
             <Button type="submit" disabled={submitting}>{submitting ? 'Submitting...' : 'Submit report'}</Button>

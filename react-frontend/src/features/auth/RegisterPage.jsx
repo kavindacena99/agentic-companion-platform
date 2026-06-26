@@ -47,14 +47,18 @@ export function RegisterPage() {
         <FormField label="Password" hint="Minimum 8 characters.">
           <input className={inputClass} type="password" minLength={8} required value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} />
         </FormField>
-        {error ? <p className="rounded-xl bg-rose-50 p-3 text-sm font-medium text-rose-700">{error}</p> : null}
+        {error ? (
+          <p className="rounded-xl bg-rose-50 p-3 text-sm font-medium text-rose-700 dark:bg-rose-950 dark:text-rose-400">
+            {error}
+          </p>
+        ) : null}
         <Button className="w-full" type="submit" disabled={submitting}>
           <FiUserPlus /> {submitting ? 'Creating account...' : 'Create account'}
         </Button>
       </form>
-      <p className="mt-5 text-center text-sm text-slate-600">
+      <p className="mt-5 text-center text-sm text-slate-600 dark:text-slate-400">
         Already have an account?{' '}
-        <Link className="font-semibold text-slate-950 underline" to="/login">
+        <Link className="font-semibold text-slate-950 underline dark:text-white" to="/login">
           Login
         </Link>
       </p>

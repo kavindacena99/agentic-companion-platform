@@ -9,6 +9,7 @@ import { useProduct } from '../../context/ProductContext'
 import { useAsync } from '../../hooks/useAsync'
 import { getApiErrorMessage } from '../../services/apiClient'
 import { agentService } from '../../services/agentService'
+import { getPersonaColor } from '../../utils/persona'
 
 export function AgentsPage() {
   const { selectedAgent, setSelectedAgent, refreshSelectedAgent } = useProduct()
@@ -37,7 +38,7 @@ export function AgentsPage() {
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
           <h1 className="text-3xl font-black tracking-tight">Choose your AI companion</h1>
-          <p className="mt-2 max-w-2xl text-sm text-slate-600">
+          <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
             Availability is resolved by the Main Backend from product settings plus Agent Platform runtime status.
           </p>
         </div>
@@ -46,23 +47,37 @@ export function AgentsPage() {
         </Button>
       </div>
 
-      {actionError ? <p className="rounded-xl bg-rose-50 p-3 text-sm font-medium text-rose-700">{actionError}</p> : null}
+      {actionError ? (
+        <p className="rounded-xl bg-rose-50 p-3 text-sm font-medium text-rose-700 dark:bg-rose-950 dark:text-rose-400">
+          {actionError}
+        </p>
+      ) : null}
       {error ? <StateBlock type="error" title="Could not load agents">{error}</StateBlock> : null}
-      {loading ? <p className="text-sm text-slate-500">Loading agents...</p> : null}
+      {loading ? <p className="text-sm text-slate-500 dark:text-slate-400">Loading agents...</p> : null}
 
       <div className="grid gap-4 md:grid-cols-3">
         {(agents || []).map((agent) => {
           const isSelected = selectedAgent?.agent?.agent_key === agent.agent_key
+          const personaColor = getPersonaColor(agent.agent_type, agent.agent_key)
           return (
-            <Card key={agent.agent_key} className={`relative overflow-hidden ${isSelected ? 'ring-2 ring-cyan-400' : ''}`}>
+            <Card
+              key={agent.agent_key}
+              className="relative overflow-hidden pt-6"
+              style={isSelected ? { outline: `2.5px solid ${personaColor}`, outlineOffset: '2px' } : undefined}
+            >
+              {/* Persona color top accent */}
+              <div
+                className="absolute left-0 right-0 top-0 h-1.5"
+                style={{ backgroundColor: personaColor }}
+              />
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-bold">{agent.display_name}</h2>
-                  <p className="mt-1 text-sm capitalize text-slate-500">{agent.agent_type}</p>
+                  <p className="mt-1 text-sm capitalize text-slate-500 dark:text-slate-400">{agent.agent_type}</p>
                 </div>
-                {isSelected ? <FiCheckCircle className="h-6 w-6 text-cyan-600" /> : null}
+                {isSelected ? <FiCheckCircle className="h-6 w-6" style={{ color: personaColor }} /> : null}
               </div>
-              <p className="mt-4 min-h-16 text-sm leading-6 text-slate-600">{agent.short_description}</p>
+              <p className="mt-4 min-h-16 text-sm leading-6 text-slate-600 dark:text-slate-400">{agent.short_description}</p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Badge tone={agent.is_available ? 'green' : 'rose'}>{agent.availability_status}</Badge>
                 {agent.requires_premium ? <Badge tone="amber">Premium</Badge> : <Badge tone="blue">Included</Badge>}
@@ -74,6 +89,7 @@ export function AgentsPage() {
                   variant={agent.is_available ? 'primary' : 'secondary'}
                   disabled={!agent.is_available || selectingKey === agent.agent_key}
                   onClick={() => selectAgent(agent.agent_key)}
+                  style={isSelected && agent.is_available ? { backgroundColor: personaColor, color: '#fff', border: 'none' } : undefined}
                 >
                   {!agent.is_available ? <FiLock /> : null}
                   {isSelected ? 'Selected' : selectingKey === agent.agent_key ? 'Selecting...' : 'Select agent'}
@@ -85,10 +101,13 @@ export function AgentsPage() {
       </div>
 
       {selectedAgent?.agent ? (
-        <Card className="flex flex-col justify-between gap-4 bg-cyan-50 md:flex-row md:items-center">
+        <Card
+          className="flex flex-col justify-between gap-4 md:flex-row md:items-center"
+          style={{ borderColor: getPersonaColor(selectedAgent.agent.agent_type, selectedAgent.agent.agent_key) }}
+        >
           <div>
-            <p className="font-semibold text-slate-950">{selectedAgent.agent.display_name} is ready.</p>
-            <p className="text-sm text-slate-600">Start a chat session through the Main Backend chat API.</p>
+            <p className="font-semibold text-slate-950 dark:text-white">{selectedAgent.agent.display_name} is ready.</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">Start a chat session through the Main Backend chat API.</p>
           </div>
           <Link to="/chat">
             <Button variant="accent">Go to chat</Button>

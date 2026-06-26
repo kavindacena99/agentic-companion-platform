@@ -54,14 +54,18 @@ export function LoginPage() {
             required
           />
         </FormField>
-        {error ? <p className="rounded-xl bg-rose-50 p-3 text-sm font-medium text-rose-700">{error}</p> : null}
+        {error ? (
+          <p className="rounded-xl bg-rose-50 p-3 text-sm font-medium text-rose-700 dark:bg-rose-950 dark:text-rose-400">
+            {error}
+          </p>
+        ) : null}
         <Button className="w-full" type="submit" disabled={submitting}>
           <FiLogIn /> {submitting ? 'Logging in...' : 'Login'}
         </Button>
       </form>
-      <p className="mt-5 text-center text-sm text-slate-600">
+      <p className="mt-5 text-center text-sm text-slate-600 dark:text-slate-400">
         New to Companio?{' '}
-        <Link className="font-semibold text-slate-950 underline" to="/register">
+        <Link className="font-semibold text-slate-950 underline dark:text-white" to="/register">
           Create an account
         </Link>
       </p>
@@ -71,17 +75,17 @@ export function LoginPage() {
 
 export function AuthFrame({ title, subtitle, children }) {
   return (
-    <main className="grid min-h-screen place-items-center bg-slate-100 px-4 py-10">
+    <main className="grid min-h-screen place-items-center bg-slate-100 px-4 py-10 dark:bg-slate-950">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
-          <Link className="text-2xl font-black text-slate-950" to="/">
+          <Link className="text-2xl font-black text-slate-950 dark:text-white" to="/">
             Companio
           </Link>
-          <p className="mt-1 text-sm text-slate-500">The AI person who understands you.</p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">The AI person who understands you.</p>
         </div>
         <Card>
-          <h1 className="text-2xl font-bold text-slate-950">{title}</h1>
-          <p className="mt-2 text-sm text-slate-600">{subtitle}</p>
+          <h1 className="text-2xl font-bold text-slate-950 dark:text-white">{title}</h1>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">{subtitle}</p>
           <div className="mt-6">{children}</div>
         </Card>
       </div>
