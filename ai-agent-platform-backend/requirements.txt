@@ -1,5 +1,13 @@
-asgiref==3.11.1
-Django==6.0.6
-djangorestframework==3.17.1
-sqlparse==0.5.5
-tzdata==2026.2
+# --- Web framework / API ---
+Django>=5.2,<7.0
+djangorestframework>=3.16
+
+# --- Configuration ---
+python-dotenv>=1.0
+pydantic>=2.0
+
+# --- AI / agent stack (reserved for later steps) ---
+chromadb>=0.5
+langgraph>=0.2
+langchain>=0.3
+openai>=1.0

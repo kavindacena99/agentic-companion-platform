@@ -30,4 +30,5 @@ urlpatterns = [
     path('api/notifications/', include('apps.notifications.urls')),
     path('api/app-config/', include('apps.app_config.urls')),
     path('api/admin/', include('apps.admin_api.urls')),
+    path('api/v1/chat/', include('apps.agent_gateway.urls')),
 ]
