@@ -21,7 +21,7 @@ export function UsagePage() {
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
           <h1 className="text-3xl font-black tracking-tight">Usage</h1>
-          <p className="mt-2 text-sm text-slate-600">Daily message limits from `/api/usage/me/`.</p>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Daily message limits from `/api/usage/me/`.</p>
         </div>
         <Button variant="secondary" onClick={run}>
           <FiRefreshCw /> Refresh
@@ -30,20 +30,20 @@ export function UsagePage() {
 
       {error ? <StateBlock type="error" title="Could not load usage">{error}</StateBlock> : null}
       <Card>
-        {loading && !usage ? <p className="text-sm text-slate-500">Loading usage...</p> : null}
+        {loading && !usage ? <p className="text-sm text-slate-500 dark:text-slate-400">Loading usage...</p> : null}
         {usage ? (
           <div>
             <div className="flex items-end justify-between gap-4">
               <div>
-                <p className="text-sm text-slate-500">Messages used today</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Messages used today</p>
                 <p className="mt-2 text-5xl font-black">{usage.messages_used}</p>
               </div>
               <div className="text-right">
-                <p className="text-sm text-slate-500">Remaining</p>
-                <p className="mt-2 text-3xl font-bold text-cyan-700">{usage.remaining_messages}</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Remaining</p>
+                <p className="mt-2 text-3xl font-bold text-cyan-700 dark:text-cyan-400">{usage.remaining_messages}</p>
               </div>
             </div>
-            <div className="mt-6 h-3 overflow-hidden rounded-full bg-slate-100">
+            <div className="mt-6 h-3 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
               <div className="h-full rounded-full bg-cyan-500" style={{ width: `${percent}%` }} />
             </div>
             <div className="mt-4 grid gap-3 text-sm md:grid-cols-3">
@@ -52,7 +52,7 @@ export function UsagePage() {
               <Info label="Can send" value={usage.can_send_message ? 'Yes' : 'No'} />
             </div>
             {!usage.can_send_message ? (
-              <div className="mt-5 rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">
+              <div className="mt-5 rounded-2xl bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-400">
                 The backend says the limit is reached. Use this state to validate upgrade prompts and blocked send
                 behavior in chat.
               </div>
@@ -64,7 +64,7 @@ export function UsagePage() {
       <Card className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
           <h2 className="font-bold">Need more capacity?</h2>
-          <p className="text-sm text-slate-600">Plan upgrades are read-only in the current backend.</p>
+          <p className="text-sm text-slate-600 dark:text-slate-400">Plan upgrades are read-only in the current backend.</p>
         </div>
         <Link to="/subscriptions">
           <Button variant="accent">View plans</Button>
@@ -76,9 +76,9 @@ export function UsagePage() {
 
 function Info({ label, value }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 font-bold text-slate-950">{value}</p>
+    <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-800">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
+      <p className="mt-1 font-bold text-slate-950 dark:text-white">{value}</p>
     </div>
   )
 }

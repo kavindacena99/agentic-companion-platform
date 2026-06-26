@@ -38,9 +38,9 @@ export function LandingPage() {
               </Link>
               <Link
                 to="/login"
-                className="inline-flex min-h-10 items-center justify-center rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-slate-100"
+                className="inline-flex min-h-10 items-center justify-center rounded-xl border-2 border-white/60 px-6 py-2 text-sm font-semibold text-white transition hover:border-white hover:bg-white/10"
               >
-                Login
+                Sign in
               </Link>
             </div>
           </div>

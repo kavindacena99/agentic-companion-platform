@@ -1,8 +1,11 @@
 const variants = {
-  primary: 'bg-slate-950 text-white hover:bg-slate-800 focus-visible:outline-slate-950',
-  secondary: 'bg-white text-slate-950 ring-1 ring-slate-200 hover:bg-slate-50 focus-visible:outline-slate-950',
+  primary:
+    'bg-slate-950 text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white focus-visible:outline-slate-950',
+  secondary:
+    'bg-white text-slate-950 ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-white dark:ring-slate-700 dark:hover:bg-slate-700 focus-visible:outline-slate-950',
   accent: 'bg-cyan-500 text-slate-950 hover:bg-cyan-400 focus-visible:outline-cyan-500',
-  ghost: 'text-slate-700 hover:bg-slate-100 focus-visible:outline-slate-950',
+  ghost:
+    'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 focus-visible:outline-slate-950',
   danger: 'bg-rose-600 text-white hover:bg-rose-500 focus-visible:outline-rose-600',
 }
 
