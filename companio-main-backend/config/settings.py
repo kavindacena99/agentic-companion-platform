@@ -145,6 +145,10 @@ AGENT_PLATFORM_TIMEOUT_SECONDS = env_int('AGENT_PLATFORM_TIMEOUT_SECONDS', 5)
 AGENT_PLATFORM_USE_MOCK = env_bool('AGENT_PLATFORM_USE_MOCK', 'True')
 FREE_DAILY_MESSAGE_LIMIT = env_int('FREE_DAILY_MESSAGE_LIMIT', 20)
 
+# agent-core (AI Agent Platform Backend) — used by the chat gateway endpoint.
+AGENT_CORE_URL = os.getenv('AGENT_CORE_URL', 'http://localhost:8001')
+AGENT_CORE_TIMEOUT_SECONDS = env_int('AGENT_CORE_TIMEOUT_SECONDS', 30)
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
