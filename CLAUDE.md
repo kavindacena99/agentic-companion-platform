@@ -6,12 +6,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Companio** is an AI companion platform. Users create a profile, select an AI agent persona (friend, romantic, mentor, etc.), and chat with it. The platform uses RAG-based agentic memory so agents can remember users across sessions.
+**Companio** is an AI companion platform. Users create a profile, select an AI agent persona (Best Friend, Girlfriend, Boyfriend), and chat with it. The platform uses RAG-based agentic memory so agents can remember users across sessions.
 
-The repo has two independent sub-projects:
+The repo is a monorepo with **three independent sub-projects**:
 
-- `companio-main-backend/` — Django REST API (Python)
+- `companio-main-backend/` — Django REST API, the user-facing "product" backend (MySQL)
+- `ai-agent-platform-backend/` — **agent-core**, the AI reasoning engine (LangGraph + RAG + LLM providers)
 - `react-frontend/` — React + Vite + Tailwind CSS frontend
+
+### Service topology
+
+```
+react-frontend  ──JWT──▶  companio-main-backend  ──HTTP──▶  ai-agent-platform-backend (agent-core)
+                          (MySQL, business logic)            │  (LangGraph pipeline, LLMs)
+                                    ▲                         │
+                                    └──── GET /api/agents/{id}/ (agent-core reads persona config)
+```
+
+The two backends have a **bidirectional runtime dependency**: the main backend forwards chat turns to agent-core, and agent-core calls back to the main backend to load agent/persona config. They use separate databases (main = MySQL, agent-core = local SQLite + ChromaDB vector store).
+
+> **Integration status:** agent-core is **not yet wired into the production chat flow**. The real chat path (`apps/chats`) still calls the legacy "Agent Platform" contract via `apps/agent_gateway/services.py` (mock mode on by default). agent-core is currently reachable only through the thin, auth-less testing endpoint `POST /api/v1/chat/` (`apps/agent_gateway/agent_client.py` + `views.py`). Wiring agent-core into `apps/chats` is the pending integration step.
 
 ---
 
@@ -47,9 +61,11 @@ python manage.py createsuperuser
 | `SECRET_KEY` | Django secret key (required) |
 | `DEBUG` | Enable debug mode |
 | `DB_NAME/USER/PASSWORD/HOST/PORT` | MySQL connection |
-| `AGENT_PLATFORM_BASE_URL` | External agent runtime URL |
-| `AGENT_PLATFORM_SERVICE_KEY` | Service-to-service auth key |
-| `AGENT_PLATFORM_USE_MOCK` | Set `True` in dev to skip real agent calls |
+| `AGENT_PLATFORM_BASE_URL` | Legacy "Agent Platform" runtime URL (used by the real chat flow) |
+| `AGENT_PLATFORM_SERVICE_KEY` | Service-to-service auth key for the legacy runtime |
+| `AGENT_PLATFORM_USE_MOCK` | Set `True` in dev to skip real agent calls (default `True`) |
+| `AGENT_CORE_URL` | agent-core base URL for the `/api/v1/chat/` testing gateway (default `http://localhost:8001`) |
+| `AGENT_CORE_TIMEOUT_SECONDS` | Request timeout when calling agent-core (default `30`) |
 | `FREE_DAILY_MESSAGE_LIMIT` | Default daily message cap for free users |
 
 The database is **MySQL only** — do not use SQLite.
@@ -63,7 +79,8 @@ Each Django app in `apps/` follows the standard layout (`models.py`, `serializer
 | `accounts` | Custom `User` model (email-primary, role field), JWT auth via SimpleJWT |
 | `profiles` | Extended user profile (avatar, bio, language, timezone) |
 | `agents` | `Agent` catalog + `UserAgentSelection` (which agent a user has picked) |
-| `agent_gateway` | HTTP proxy to the external agent runtime; mock mode available via `AGENT_PLATFORM_USE_MOCK=True` |
+| `agent_gateway` | HTTP bridge to the AI. **Two clients:** `services.py` → legacy Agent Platform (`AGENT_PLATFORM_BASE_URL`, mock mode via `AGENT_PLATFORM_USE_MOCK=True`), used by the `chats` flow; `agent_client.py` → agent-core (`AGENT_CORE_URL`), exposed at `POST /api/v1/chat/` for manual/Postman testing |
+| `admin_api` | `/api/admin/` REST endpoints backing the admin console (users, plans, agents, usage, safety, LLM providers) |
 | `chats` | `ChatSession` and `ChatMessage` models; orchestrates user message → agent response flow |
 | `usage` | `DailyUsage` tracks per-user daily message counts against plan limits |
 | `subscriptions` | `Plan` catalog + `UserSubscription`; supports Stripe, Google Play, Apple IAP, PayHere |
@@ -86,6 +103,8 @@ Each Django app in `apps/` follows the standard layout (`models.py`, `serializer
 /api/subscriptions/
 /api/notifications/
 /api/app-config/
+/api/admin/         # admin console REST API (admin-role only)
+/api/v1/chat/       # thin forwarding gateway to agent-core (AllowAny, testing only)
 ```
 
 All endpoints use **JWT Bearer** authentication. The `REST_FRAMEWORK` default requires authentication on every view unless explicitly overridden.
@@ -98,7 +117,72 @@ All endpoints use **JWT Bearer** authentication. The `REST_FRAMEWORK` default re
 
 ### Agent gateway mock mode
 
-When `AGENT_PLATFORM_USE_MOCK=True`, `apps/agent_gateway/services.py` returns a hardcoded mock response without hitting the external runtime. Use this during local development when the agent runtime is not running.
+When `AGENT_PLATFORM_USE_MOCK=True`, `apps/agent_gateway/services.py` returns a hardcoded mock response without hitting the external runtime. Use this during local development when the agent runtime is not running. This only affects the legacy path used by the `chats` flow — the `/api/v1/chat/` gateway always calls agent-core for real.
+
+---
+
+## agent-core (`ai-agent-platform-backend/`)
+
+The AI reasoning engine — a **separate Django project** that runs the full agentic RAG pipeline. It exposes essentially one endpoint and has no user-facing auth; it's an internal service called by the main backend.
+
+### Setup
+
+```bash
+cd ai-agent-platform-backend
+cp .env.example .env          # fill in LLM keys + MAIN_BACKEND_BASE_URL
+python -m venv venv
+venv\Scripts\activate         # Windows
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver 8001   # run on 8001 so it doesn't clash with the main backend (8000)
+```
+
+### Endpoints
+
+```
+GET  /health/
+POST /chat/     # {user_id, agent_id, session_id, message} -> {response, emotion, intent}
+```
+
+`POST /chat/` is `AllowAny` and runs one chat turn through the full pipeline. Errors never leak internals — the view returns a generic 503 on any pipeline failure.
+
+### Environment variables (`.env`)
+
+| Variable | Purpose |
+|---|---|
+| `DJANGO_SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS` | Django core |
+| `LOG_LEVEL` | Logging level (default `INFO`) |
+| `CHROMA_DB_PATH` | Local ChromaDB persistence path |
+| `MAIN_BACKEND_BASE_URL` | Main backend URL — agent-core calls `GET {base}/api/agents/{agent_id}/` for persona config |
+| `MAIN_BACKEND_SERVICE_KEY` / `MAIN_BACKEND_TIMEOUT` | Auth + timeout for the config call |
+| `OPENAI_API_KEY` / `OPENAI_MODEL` | OpenAI provider (default model `gpt-4o-mini`) |
+| `GEMINI_API_KEY` / `GEMINI_MODEL` | Gemini provider (default model `gemini-1.5-flash`) |
+
+agent-core stores its own Django metadata in a local **SQLite** `db.sqlite3`; long-term memory lives in **ChromaDB** (`CHROMA_DB_PATH`). No MySQL here.
+
+### The reasoning pipeline (LangGraph)
+
+`graph/workflow.py` compiles a single linear graph. `services/chat_service.py::process_chat` is the entry point; each node reads shared `AgentState` (`graph/state.py`) and returns a partial update. Every external call degrades gracefully (sets a `safety_flag`, never crashes the graph):
+
+```
+input → intent → emotion → agent_loader → memory_retriever →
+context_builder → prompt_builder → llm → safety → response_finalizer → writeback
+```
+
+### Subsystems
+
+| Module | Responsibility |
+|---|---|
+| `services/agent_loader.py` | Builds an `AgentProfile` by merging main-backend agent config (`GET /api/agents/{id}/`) with a local `agents/{agent_id}/behavior.txt` persona file. Config-driven — no hard-coded agents. |
+| `services/classifiers/` | `intent_classifier` (flags `crisis`) and `emotion_detector` |
+| `memory/` | RAG over **ChromaDB**. Four collections: `user_memory`, `conversation_memory`, `emotional_memory`, `agent_behavior_memory`. `memory_service.py` is the only public interface (`save_*`, `get_relevant_memories`) |
+| `memory/writeback/` | Learns from each exchange: `fact_extractor`, `memory_classifier`, `summarizer`, `writeback_engine`. Runs as the final pipeline node |
+| `llm/llm_router.py` | Provider orchestrator with automatic fallback. OpenAI ↔ Gemini, chosen by quality/cost; `crisis` intent forces the highest-quality provider. Safe fallback text when all providers fail |
+| `safety/engine.py` | Deterministic, stateless, keyword-based **post-LLM** gatekeeper. Detects crisis/self-harm, emotional dependency, manipulation, isolation, and false "I'm a real human" claims; scores responses and rewrites unsafe ones with a grounding statement. Never relies on an LLM to be safe |
+
+### Persona files
+
+Each agent has a `agents/{agent_id}/behavior.txt` (currently `best_friend`, `boyfriend`, `girlfriend`). The `agent_id` sent to `/chat/` must match both a directory here and an `Agent.key` in the main backend.
 
 ---
 
@@ -131,8 +215,9 @@ npm run preview    # preview production build
 
 - `AuthContext` — manages `user`, `status` (`guest` | `loading` | `authenticated`), `login()`, `register()`, `logout()`. Session is restored from `localStorage` tokens on mount. The `companio:unauthorized` window event triggers automatic logout.
 - `ProductContext` — app-level product/config state.
+- `ThemeContext` — dark/light theme toggle (persisted).
 
-Both are composed in `src/app/providers.jsx` and wrap the entire app inside `BrowserRouter`.
+All three are composed in `src/app/providers.jsx` and wrap the entire app inside `BrowserRouter`.
 
 #### API layer (`src/services/`)
 

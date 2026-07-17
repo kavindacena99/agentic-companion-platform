@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Companio · Is agent-core Agentic RAG?</title>
+<style>
+  :root{
+    --bg:#f6f8fb; --surface:#ffffff; --surface-2:#f0f3f8; --ink:#1c2430;
+    --muted:#5b6675; --line:#e2e8f1; --brand:#4f46e5; --brand-soft:#eef0fe;
+    --green:#0f9d6e; --green-soft:#e6f6ef; --amber:#b7791f; --amber-soft:#fdf4e3;
+    --red:#d64545; --red-soft:#fdecec; --code-bg:#0f172a; --code-ink:#e2e8f0;
+    --radius:14px; --shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px rgba(16,24,40,.06);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0; background:var(--bg); color:var(--ink);
+    font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1040px; margin:0 auto; padding:0 22px 96px}
+  a{color:var(--brand); text-decoration:none} a:hover{text-decoration:underline}
+
+  header.hero{background:linear-gradient(135deg,#eef1ff 0%,#f6f8fb 60%);
+    border-bottom:1px solid var(--line); padding:56px 0 40px; margin-bottom:8px;}
+  .hero .wrap{padding-bottom:0}
+  .eyebrow{display:inline-block; font-size:12px; font-weight:700; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--brand); background:var(--brand-soft);
+    padding:5px 11px; border-radius:999px; margin-bottom:18px}
+  h1{font-size:36px; line-height:1.15; margin:0 0 12px; letter-spacing:-.02em}
+  .lede{font-size:18px; color:var(--muted); max-width:72ch; margin:0}
+  .meta{margin-top:20px; font-size:13px; color:var(--muted)}
+  .meta code{background:var(--surface-2); padding:2px 7px; border-radius:6px; font-size:12px}
+
+  /* verdict badges */
+  .verdicts{display:flex; gap:14px; flex-wrap:wrap; margin:26px 0 6px}
+  .vbadge{flex:1; min-width:210px; background:var(--surface); border:1px solid var(--line);
+    border-radius:var(--radius); padding:16px 18px; box-shadow:var(--shadow); border-top:4px solid var(--line)}
+  .vbadge.ok{border-top-color:var(--green)}
+  .vbadge.part{border-top-color:var(--amber)}
+  .vbadge.gap{border-top-color:var(--red)}
+  .vbadge .lab{font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
+  .vbadge .val{font-size:22px; font-weight:700; margin:4px 0 2px}
+  .vbadge.ok .val{color:var(--green)} .vbadge.part .val{color:var(--amber)} .vbadge.gap .val{color:var(--red)}
+  .vbadge p{margin:6px 0 0; font-size:13.5px; color:var(--muted)}
+
+  section{margin:52px 0}
+  h2{font-size:26px; letter-spacing:-.01em; margin:0 0 6px; padding-top:8px}
+  .h2sub{color:var(--muted); margin:0 0 22px; font-size:15px}
+  h3{font-size:18px; margin:28px 0 8px}
+  p{margin:12px 0}
+
+  nav.toc{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    padding:18px 22px; margin:28px 0 40px; box-shadow:var(--shadow)}
+  nav.toc h4{margin:0 0 10px; font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted)}
+  nav.toc ol{margin:0; padding-left:20px; columns:2; column-gap:36px}
+  @media(max-width:640px){nav.toc ol{columns:1}}
+  nav.toc li{margin:4px 0}
+
+  .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    padding:22px 24px; box-shadow:var(--shadow); margin:18px 0}
+
+  .note{border-left:4px solid var(--brand); background:var(--brand-soft);
+    padding:14px 18px; border-radius:0 10px 10px 0; margin:18px 0; font-size:15px}
+  .note.warn{border-color:var(--amber); background:var(--amber-soft)}
+  .note.good{border-color:var(--green); background:var(--green-soft)}
+  .note.danger{border-color:var(--red); background:var(--red-soft)}
+  .note strong{display:block; margin-bottom:2px}
+
+  pre{background:var(--code-bg); color:var(--code-ink); border-radius:12px; padding:16px 18px;
+    overflow-x:auto; font-size:13.5px; line-height:1.6; margin:16px 0}
+  code{font-family:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  p code, li code, td code{background:var(--surface-2); color:#3b3f6b; padding:2px 6px; border-radius:6px; font-size:.88em}
+  .c-kw{color:#c792ea}.c-fn{color:#82aaff}.c-str{color:#c3e88d}.c-com{color:#6b7a99}
+
+  table{width:100%; border-collapse:collapse; margin:18px 0; font-size:14.5px}
+  th,td{text-align:left; padding:11px 14px; border-bottom:1px solid var(--line); vertical-align:top}
+  th{font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); background:var(--surface-2)}
+  tr:last-child td{border-bottom:none}
+  table.bordered{border:1px solid var(--line); border-radius:12px; overflow:hidden}
+  .yes{color:var(--green); font-weight:700} .part{color:var(--amber); font-weight:700} .no{color:var(--red); font-weight:700}
+
+  .two{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+  @media(max-width:720px){.two{grid-template-columns:1fr}}
+  .flowmini{font-family:ui-monospace,monospace; font-size:12.5px; color:var(--muted); background:var(--surface-2);
+    padding:10px 14px; border-radius:8px; overflow-x:auto; white-space:nowrap}
+
+  footer{margin-top:70px; padding-top:24px; border-top:1px solid var(--line); color:var(--muted); font-size:13px}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="eyebrow">Companio · Architecture Assessment</span>
+    <h1>Is <code style="font-size:.72em">agent-core</code> aligned with Agentic RAG?</h1>
+    <p class="lede">An honest read of the current AI agent platform against the RAG and <em>Agentic</em> RAG patterns — what’s genuinely there, what’s still a placeholder, and the shortest path to closing the gap.</p>
+    <p class="meta">Scope: <code>ai-agent-platform-backend/</code> · Basis: source as it stands today, not the roadmap.</p>
+
+    <div class="verdicts">
+      <div class="vbadge ok">
+        <div class="lab">RAG</div>
+        <div class="val">Yes ✓</div>
+        <p>Retrieve → augment → generate → write-back loop is fully wired.</p>
+      </div>
+      <div class="vbadge part">
+        <div class="lab">Agentic RAG</div>
+        <div class="val">Partial</div>
+        <p>Scaffolding is right, but the defining agentic behaviours aren’t exercised yet.</p>
+      </div>
+      <div class="vbadge gap">
+        <div class="lab">Retrieval quality</div>
+        <div class="val">Placeholder</div>
+        <p>Embeddings are a hash stub — real semantic retrieval is still pending.</p>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <nav class="toc">
+    <h4>On this page</h4>
+    <ol>
+      <li><a href="#verdict">The one-line verdict</a></li>
+      <li><a href="#israg">Where it <em>is</em> RAG</a></li>
+      <li><a href="#agentic">What “agentic” adds</a></li>
+      <li><a href="#scorecard">The scorecard</a></li>
+      <li><a href="#compare">Current vs. target (diagram)</a></li>
+      <li><a href="#roadmap">Path to true Agentic RAG</a></li>
+      <li><a href="#bottom">Bottom line</a></li>
+    </ol>
+  </nav>
+
+  <!-- VERDICT -->
+  <section id="verdict">
+    <h2>1 · The one-line verdict</h2>
+    <p class="h2sub">Structurally a RAG system, built with Agentic RAG in mind — but today it runs as a fixed pipeline, not a reasoning agent.</p>
+    <div class="card">
+      <p style="margin-top:0; font-size:16.5px">
+        agent-core is a genuine <strong>RAG</strong> system with an extra write-back loop that lets it learn across sessions. What it is <em>not yet</em> is <strong>Agentic</strong> in the technical sense: the LLM never decides <em>whether</em> or <em>what</em> to retrieve, never reformulates a query, never loops or reflects, and never calls a tool. Those “decisions” are made by <strong>deterministic keyword rules</strong> and a <strong>strictly linear</strong> LangGraph. The foundation is right; the agentic behaviours are still TODOs.
+      </p>
+    </div>
+  </section>
+
+  <!-- IS RAG -->
+  <section id="israg">
+    <h2>2 · Where it <em>is</em> RAG ✓</h2>
+    <p class="h2sub">The classic retrieve → augment → generate cycle is fully present — plus a learning loop most vanilla RAG lacks.</p>
+
+    <table class="bordered">
+      <tr><th>RAG stage</th><th>In agent-core</th></tr>
+      <tr><td><strong>Retrieve</strong></td><td><code>memory_retriever_node</code> → <code>get_relevant_memories()</code> → <code>search_memory()</code> against ChromaDB, across 4 collections, scoped by <code>user_id</code> + <code>agent_id</code></td></tr>
+      <tr><td><strong>Augment</strong></td><td><code>context_builder_node</code> + <code>prompt_builder_node</code> inject retrieved memories into a sectioned prompt (<code>[USER MEMORY]</code>, <code>[CONVERSATION MEMORY]</code>, …)</td></tr>
+      <tr><td><strong>Generate</strong></td><td><code>llm_node</code> calls the model with that augmented prompt via the LLM router</td></tr>
+      <tr><td><strong>Write-back (bonus)</strong></td><td><code>writeback_node</code> summarizes, extracts facts, and stores new memories — closing a read → answer → learn loop</td></tr>
+    </table>
+
+    <div class="flowmini">user message → RETRIEVE memories → AUGMENT prompt → GENERATE reply → WRITE-BACK new memories → (next turn remembers)</div>
+    <p>That closed loop is what turns a stateless LLM into a companion with continuity — the core product promise, and unambiguously RAG.</p>
+  </section>
+
+  <!-- AGENTIC -->
+  <section id="agentic">
+    <h2>3 · What “agentic” adds — and what’s missing</h2>
+    <p class="h2sub">“Agentic RAG” = the agent/LLM dynamically <em>drives</em> retrieval and reasoning, instead of following a fixed script.</p>
+
+    <p>In Agentic RAG the model itself decides whether to retrieve, what to search for, reformulates queries, grades and re-ranks results, loops when the answer isn’t good enough, and chooses tools. Measured against that bar, here’s the current state:</p>
+
+    <div class="two">
+      <div class="card" style="margin:0">
+        <h3 style="margin-top:0; color:var(--green)">Present</h3>
+        <ul style="margin:0; padding-left:18px; font-size:14.5px">
+          <li>A multi-stage <strong>LangGraph</strong> pipeline over a shared state</li>
+          <li>Memory <strong>retrieval + write-back</strong> loop</li>
+          <li>An <strong>understanding layer</strong> (intent, emotion)</li>
+          <li>A <strong>provider router</strong> with automatic fallback</li>
+          <li>A deterministic <strong>safety gatekeeper</strong></li>
+        </ul>
+      </div>
+      <div class="card" style="margin:0">
+        <h3 style="margin-top:0; color:var(--red)">Missing (the “agentic” part)</h3>
+        <ul style="margin:0; padding-left:18px; font-size:14.5px">
+          <li><strong>No dynamic decision to retrieve</strong> — always top-5 from all stores</li>
+          <li><strong>No query reformulation / re-ranking / relevance grading</strong></li>
+          <li><strong>No loops or conditional edges</strong> — the graph is strictly linear</li>
+          <li><strong>No LLM-driven routing</strong> — decisions are keyword rules</li>
+          <li><strong>No tool use / function calling</strong></li>
+          <li><strong>No self-reflection</strong> on its own answer</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="note warn">
+      <strong>The key nuance</strong>
+      The “agentic” behaviours the vision describes (when to comfort, ask a follow-up, motivate) are expressed through the <em>prompt and persona</em> — not through actual agent control flow. LangGraph is used, but only as a linear state machine; none of its branching/looping (the thing that makes a graph <em>agentic</em>) is used.
+    </div>
+  </section>
+
+  <!-- SCORECARD -->
+  <section id="scorecard">
+    <h2>4 · The scorecard</h2>
+    <p class="h2sub">Every defining property of Agentic RAG, checked against the code.</p>
+
+    <table class="bordered">
+      <tr><th>Property</th><th>Status</th><th>Evidence in code</th></tr>
+      <tr><td>Retrieval-augmented generation</td><td class="yes">✓ Yes</td><td>retriever → context → prompt → llm nodes</td></tr>
+      <tr><td>Memory write-back / learning loop</td><td class="yes">✓ Yes</td><td><code>writeback_node</code> + <code>writeback_engine</code></td></tr>
+      <tr><td>Dynamic decision to retrieve</td><td class="no">✗ No</td><td>retrieval is unconditional, fixed <code>top_k=5</code></td></tr>
+      <tr><td>Query reformulation / re-ranking / grading</td><td class="no">✗ No</td><td>raw user message is the query; hits used as-is</td></tr>
+      <tr><td>Iterative / looping reasoning</td><td class="no">✗ No</td><td>linear <code>add_edge</code> chain, no cycles</td></tr>
+      <tr><td>LLM-driven routing / decisions</td><td class="part">◐ Partial</td><td>intent/emotion/provider = <strong>rule-based</strong>, not reasoning</td></tr>
+      <tr><td>Tool use / function calling</td><td class="no">✗ No</td><td>LLM emits final text only</td></tr>
+      <tr><td>Self-reflection / answer grading</td><td class="part">◐ Partial</td><td>only the deterministic post-hoc <code>safety_node</code></td></tr>
+      <tr><td>Semantic retrieval quality</td><td class="part">◐ Partial</td><td><code>embeddings.py</code> is a hash placeholder, not a model</td></tr>
+    </table>
+
+    <div class="note danger">
+      <strong>The retrieval caveat matters most</strong>
+      Because embeddings are a deterministic hash stub, “similarity” today behaves closer to fuzzy text-identity than true semantic meaning. Even the “R” in RAG isn’t fully realized until a real embedding model is dropped in — the interface for that already exists.
+    </div>
+  </section>
+
+  <!-- COMPARE -->
+  <section id="compare">
+    <h2>5 · Current vs. target — the difference in one picture</h2>
+    <p class="h2sub">Left: today’s straight-line RAG. Right: what an agentic loop adds.</p>
+
+    <div class="card" style="overflow-x:auto">
+      <svg viewBox="0 0 880 470" width="100%" style="height:auto; max-width:880px; display:block; margin:0 auto; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" role="img" aria-label="Comparison of current linear RAG versus target agentic RAG">
+        <defs>
+          <marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/></marker>
+          <marker id="ag" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7,3 L0,6 Z" fill="#a855f7"/></marker>
+        </defs>
+
+        <!-- headings -->
+        <text x="215" y="28" text-anchor="middle" fill="#1c2430" font-size="15" font-weight="700">Current — linear RAG</text>
+        <text x="665" y="28" text-anchor="middle" fill="#7c3aed" font-size="15" font-weight="700">Target — Agentic RAG</text>
+        <line x1="440" y1="44" x2="440" y2="450" stroke="#e2e8f1" stroke-width="1.5" stroke-dasharray="4 5"/>
+
+        <!-- ===== LEFT: linear ===== -->
+        <g font-size="12.5" font-weight="600">
+          <rect x="120" y="52"  width="190" height="42" rx="10" fill="#eef0fe" stroke="#6366f1" stroke-width="1.4"/><text x="215" y="78" text-anchor="middle" fill="#1c2430">user message</text>
+          <rect x="120" y="120" width="190" height="42" rx="10" fill="#e6f6ef" stroke="#0f9d6e" stroke-width="1.4"/><text x="215" y="146" text-anchor="middle" fill="#1c2430">retrieve (always, top-5)</text>
+          <rect x="120" y="188" width="190" height="42" rx="10" fill="#e6f6ef" stroke="#0f9d6e" stroke-width="1.4"/><text x="215" y="214" text-anchor="middle" fill="#1c2430">augment prompt</text>
+          <rect x="120" y="256" width="190" height="42" rx="10" fill="#f3e8fd" stroke="#a855f7" stroke-width="1.4"/><text x="215" y="282" text-anchor="middle" fill="#1c2430">generate</text>
+          <rect x="120" y="324" width="190" height="42" rx="10" fill="#fdecec" stroke="#d64545" stroke-width="1.4"/><text x="215" y="350" text-anchor="middle" fill="#1c2430">safety (rules)</text>
+          <rect x="120" y="392" width="190" height="42" rx="10" fill="#fdf4e3" stroke="#b7791f" stroke-width="1.4"/><text x="215" y="418" text-anchor="middle" fill="#1c2430">reply + write-back</text>
+        </g>
+        <g stroke="#94a3b8" stroke-width="2" marker-end="url(#a)">
+          <line x1="215" y1="94"  x2="215" y2="119"/>
+          <line x1="215" y1="162" x2="215" y2="187"/>
+          <line x1="215" y1="230" x2="215" y2="255"/>
+          <line x1="215" y1="298" x2="215" y2="323"/>
+          <line x1="215" y1="366" x2="215" y2="391"/>
+        </g>
+        <text x="215" y="458" text-anchor="middle" fill="#5b6675" font-size="11.5">one pass · no decisions · no loops</text>
+
+        <!-- ===== RIGHT: agentic ===== -->
+        <g font-size="12.5" font-weight="600">
+          <rect x="570" y="52"  width="190" height="42" rx="10" fill="#eef0fe" stroke="#6366f1" stroke-width="1.4"/><text x="665" y="78" text-anchor="middle" fill="#1c2430">user message</text>
+          <rect x="570" y="120" width="190" height="42" rx="10" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.6"/><text x="665" y="140" text-anchor="middle" fill="#1c2430">agent decides:</text><text x="665" y="156" text-anchor="middle" fill="#5b6675" font-size="10.5" font-weight="500">retrieve? which store? tool?</text>
+          <rect x="570" y="188" width="190" height="42" rx="10" fill="#e6f6ef" stroke="#0f9d6e" stroke-width="1.4"/><text x="665" y="208" text-anchor="middle" fill="#1c2430">retrieve + re-rank</text><text x="665" y="224" text-anchor="middle" fill="#5b6675" font-size="10.5" font-weight="500">reformulated query</text>
+          <rect x="570" y="256" width="190" height="42" rx="10" fill="#f3e8fd" stroke="#a855f7" stroke-width="1.4"/><text x="665" y="282" text-anchor="middle" fill="#1c2430">generate</text>
+          <rect x="570" y="324" width="190" height="42" rx="10" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.6"/><text x="665" y="344" text-anchor="middle" fill="#1c2430">reflect / grade</text><text x="665" y="360" text-anchor="middle" fill="#5b6675" font-size="10.5" font-weight="500">good enough?</text>
+          <rect x="570" y="392" width="190" height="42" rx="10" fill="#fdf4e3" stroke="#b7791f" stroke-width="1.4"/><text x="665" y="418" text-anchor="middle" fill="#1c2430">reply + write-back</text>
+        </g>
+        <g stroke="#94a3b8" stroke-width="2" marker-end="url(#a)">
+          <line x1="665" y1="94"  x2="665" y2="119"/>
+          <line x1="665" y1="162" x2="665" y2="187"/>
+          <line x1="665" y1="230" x2="665" y2="255"/>
+          <line x1="665" y1="298" x2="665" y2="323"/>
+        </g>
+        <!-- decision skip edge -->
+        <path d="M760,141 H830 V413 H762" fill="none" stroke="#a855f7" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#ag)"/>
+        <text x="843" y="280" fill="#7c3aed" font-size="10" font-weight="600" transform="rotate(90 843 280)">skip (e.g. crisis / casual)</text>
+        <!-- reflect loop back -->
+        <path d="M570,345 H500 V209 H568" fill="none" stroke="#a855f7" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#ag)"/>
+        <text x="497" y="277" fill="#7c3aed" font-size="10" font-weight="600" transform="rotate(-90 497 277)">retry: retrieve again</text>
+        <line x1="665" y1="366" x2="665" y2="391" stroke="#94a3b8" stroke-width="2" marker-end="url(#a)"/>
+        <text x="665" y="458" text-anchor="middle" fill="#7c3aed" font-size="11.5">branches · loops · agent-driven</text>
+      </svg>
+    </div>
+    <p style="font-size:14px; color:var(--muted)">The building blocks (LangGraph, memory service, safety, router) are already in place on the left. Becoming the right-hand version is mostly about adding <strong>conditional edges, loops, and letting the LLM make the retrieval decisions</strong> — not a rewrite.</p>
+  </section>
+
+  <!-- ROADMAP -->
+  <section id="roadmap">
+    <h2>6 · The path to true Agentic RAG</h2>
+    <p class="h2sub">Ordered by impact-per-effort. None of these require throwing away what exists.</p>
+
+    <table class="bordered">
+      <tr><th>#</th><th>Change</th><th>Why it matters</th></tr>
+      <tr><td>1</td><td><strong>Real embeddings</strong> — swap the hash stub for an actual model (interface already exists)</td><td>Without it, RAG retrieval isn’t semantically meaningful. Highest priority.</td></tr>
+      <tr><td>2</td><td><strong>Conditional graph edges</strong> — e.g. <code>crisis</code> fast-path skips the LLM; skip retrieval on trivial turns</td><td>Smallest change that makes the graph genuinely branch. Also improves safety &amp; cost. LangGraph <code>add_conditional_edges</code>.</td></tr>
+      <tr><td>3</td><td><strong>Agent-driven retrieval</strong> — LLM decides what/whether to retrieve and reformulates the query</td><td>The core of “agentic” retrieval vs. a fixed top-5.</td></tr>
+      <tr><td>4</td><td><strong>Retrieval grading + loop</strong> — grade memory relevance, optionally re-retrieve (a cycle)</td><td>Turns the pipeline into an iterative agent.</td></tr>
+      <tr><td>5</td><td><strong>LLM-based (or hybrid) classification</strong> instead of pure keyword rules</td><td>Adaptive intent/emotion handling.</td></tr>
+      <tr><td>6</td><td><strong>Tool calling</strong> — reminders, activity suggestions, etc. as real tools</td><td>Lets the agent act, not just talk.</td></tr>
+    </table>
+
+    <div class="note good">
+      <strong>Recommended first step</strong>
+      Item&nbsp;2 (a conditional <em>crisis fast-path</em> that bypasses the LLM entirely) is the cheapest move that meaningfully increases “agentic-ness” — and it hardens safety at the same time, since a crisis reply would no longer depend on the model behaving.
+    </div>
+  </section>
+
+  <!-- BOTTOM LINE -->
+  <section id="bottom">
+    <h2>7 · Bottom line</h2>
+    <div class="card">
+      <ul style="margin:0; font-size:15.5px; padding-left:20px">
+        <li><strong>RAG:</strong> <span class="yes">yes</span> — structurally complete; quality gated on real embeddings.</li>
+        <li><strong>Agentic:</strong> <span class="no">not yet</span> in the technical sense — a fixed, linear pipeline rather than an agent reasoning about its own retrieval and steps.</li>
+        <li><strong>Alignment with the stated “Agentic RAG” vision:</strong> <span class="part">on track</span> — the scaffolding (LangGraph, memory service, write-back, safety, provider routing) was clearly built with Agentic RAG in mind. It’s a strong foundation; the defining agentic behaviours are the remaining work.</li>
+      </ul>
+    </div>
+    <p style="color:var(--muted); font-size:14.5px">In short: call it <strong>“RAG with an agentic-ready architecture.”</strong> The distance to genuine Agentic RAG is a handful of additive changes — chiefly real embeddings and conditional/looping edges — not a redesign.</p>
+  </section>
+
+  <footer>
+    <p>Assessment of <code>ai-agent-platform-backend/</code> as it currently stands. Companio agentic companion platform. Companion doc: <em>agent-core-architecture.html</em>.</p>
+  </footer>
+
+</div>
+</body>
+</html>
