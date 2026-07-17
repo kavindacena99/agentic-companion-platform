@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Companio · agent-core Architecture</title>
+<style>
+  :root{
+    --bg:#f6f8fb; --surface:#ffffff; --surface-2:#f0f3f8; --ink:#1c2430;
+    --muted:#5b6675; --line:#e2e8f1; --brand:#4f46e5; --brand-soft:#eef0fe;
+    --green:#0f9d6e; --green-soft:#e6f6ef; --amber:#b7791f; --amber-soft:#fdf4e3;
+    --red:#d64545; --red-soft:#fdecec; --code-bg:#0f172a; --code-ink:#e2e8f0;
+    --radius:14px; --shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px rgba(16,24,40,.06);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1040px; margin:0 auto; padding:0 22px 96px}
+  a{color:var(--brand); text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  /* Header */
+  header.hero{
+    background:linear-gradient(135deg,#eef1ff 0%,#f6f8fb 60%);
+    border-bottom:1px solid var(--line); padding:56px 0 40px; margin-bottom:8px;
+  }
+  .hero .wrap{padding-bottom:0}
+  .eyebrow{display:inline-block; font-size:12px; font-weight:700; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--brand); background:var(--brand-soft);
+    padding:5px 11px; border-radius:999px; margin-bottom:18px}
+  h1{font-size:38px; line-height:1.15; margin:0 0 12px; letter-spacing:-.02em}
+  .lede{font-size:18px; color:var(--muted); max-width:70ch; margin:0}
+  .meta{margin-top:20px; font-size:13px; color:var(--muted)}
+  .meta code{background:var(--surface-2); padding:2px 7px; border-radius:6px; font-size:12px}
+
+  /* TOC */
+  nav.toc{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    padding:18px 22px; margin:28px 0 40px; box-shadow:var(--shadow)}
+  nav.toc h4{margin:0 0 10px; font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted)}
+  nav.toc ol{margin:0; padding-left:20px; columns:2; column-gap:36px}
+  @media(max-width:640px){nav.toc ol{columns:1}}
+  nav.toc li{margin:4px 0}
+
+  section{margin:52px 0}
+  h2{font-size:26px; letter-spacing:-.01em; margin:0 0 6px; padding-top:8px}
+  .h2sub{color:var(--muted); margin:0 0 22px; font-size:15px}
+  h3{font-size:18px; margin:30px 0 8px}
+  p{margin:12px 0}
+
+  .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    padding:22px 24px; box-shadow:var(--shadow); margin:18px 0}
+
+  /* Callouts */
+  .note{border-left:4px solid var(--brand); background:var(--brand-soft);
+    padding:14px 18px; border-radius:0 10px 10px 0; margin:18px 0; font-size:15px}
+  .note.warn{border-color:var(--amber); background:var(--amber-soft)}
+  .note.good{border-color:var(--green); background:var(--green-soft)}
+  .note.danger{border-color:var(--red); background:var(--red-soft)}
+  .note strong{display:block; margin-bottom:2px}
+
+  /* Code */
+  pre{background:var(--code-bg); color:var(--code-ink); border-radius:12px; padding:16px 18px;
+    overflow-x:auto; font-size:13.5px; line-height:1.6; margin:16px 0}
+  code{font-family:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  p code, li code, td code{background:var(--surface-2); color:#3b3f6b; padding:2px 6px; border-radius:6px; font-size:.88em}
+  .c-kw{color:#c792ea}.c-fn{color:#82aaff}.c-str{color:#c3e88d}.c-com{color:#6b7a99}.c-num{color:#f78c6c}
+
+  /* Pipeline diagram */
+  .pipe{display:flex; flex-direction:column; gap:0; margin:22px 0}
+  .pstep{display:flex; align-items:stretch; gap:16px}
+  .pstep .idx{flex:0 0 42px; display:flex; flex-direction:column; align-items:center}
+  .pstep .dot{width:34px; height:34px; border-radius:50%; display:grid; place-items:center;
+    font-weight:700; font-size:13px; color:#fff; background:var(--brand); flex:0 0 auto; z-index:1}
+  .pstep .line{width:2px; flex:1; background:var(--line); margin:2px 0}
+  .pstep:last-child .line{display:none}
+  .pstep .body{flex:1; padding-bottom:20px}
+  .pstep .body h4{margin:4px 0 3px; font-size:15.5px}
+  .pstep .body .tag{font-family:ui-monospace,monospace; font-size:11.5px; color:var(--muted);
+    background:var(--surface-2); padding:2px 7px; border-radius:5px}
+  .pstep .body p{margin:6px 0 0; font-size:14px; color:var(--muted)}
+  .grp-understand .dot{background:#6366f1}
+  .grp-agent .dot{background:#0ea5e9}
+  .grp-memory .dot{background:#0f9d6e}
+  .grp-gen .dot{background:#a855f7}
+  .grp-safety .dot{background:#d64545}
+  .grp-learn .dot{background:#b7791f}
+
+  /* Tables */
+  table{width:100%; border-collapse:collapse; margin:18px 0; font-size:14.5px}
+  th,td{text-align:left; padding:11px 14px; border-bottom:1px solid var(--line); vertical-align:top}
+  th{font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); background:var(--surface-2)}
+  tr:last-child td{border-bottom:none}
+  table.bordered{border:1px solid var(--line); border-radius:12px; overflow:hidden}
+
+  .pill{display:inline-block; font-size:11.5px; font-weight:600; padding:2px 9px; border-radius:999px}
+  .pill.det{background:var(--green-soft); color:var(--green)}
+  .pill.llm{background:#ede9fe; color:#7c3aed}
+  .pill.io{background:#e0f2fe; color:#0369a1}
+
+  .two{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+  @media(max-width:720px){.two{grid-template-columns:1fr}}
+
+  .collcard{border:1px solid var(--line); border-radius:12px; padding:16px 18px; background:var(--surface)}
+  .collcard h4{margin:0 0 4px; font-size:14.5px; font-family:ui-monospace,monospace; color:var(--brand)}
+  .collcard p{margin:0; font-size:13.5px; color:var(--muted)}
+
+  footer{margin-top:70px; padding-top:24px; border-top:1px solid var(--line); color:var(--muted); font-size:13px}
+  .kbd{font-family:ui-monospace,monospace; background:var(--surface-2); border:1px solid var(--line);
+    border-bottom-width:2px; border-radius:6px; padding:1px 7px; font-size:12.5px}
+  .flowmini{font-family:ui-monospace,monospace; font-size:12.5px; color:var(--muted); background:var(--surface-2);
+    padding:10px 14px; border-radius:8px; overflow-x:auto; white-space:nowrap}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="eyebrow">Companio · Architecture Deep-Dive</span>
+    <h1>Inside <code style="font-size:.7em">agent-core</code> — the AI Agent Platform Backend</h1>
+    <p class="lede">How the AI backend is built, what actually happens when an agent answers a user, and exactly how the LangGraph pipeline turns one message into a safe, persona-shaped, memory-aware reply.</p>
+    <p class="meta">Sub-project: <code>ai-agent-platform-backend/</code> &nbsp;·&nbsp; Stack: Django + DRF · LangGraph · ChromaDB · OpenAI/Gemini &nbsp;·&nbsp; Single endpoint: <code>POST /chat/</code></p>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <nav class="toc">
+    <h4>On this page</h4>
+    <ol>
+      <li><a href="#glance">The whole flow — one diagram</a></li>
+      <li><a href="#big">The big picture</a></li>
+      <li><a href="#contract">The one endpoint &amp; its contract</a></li>
+      <li><a href="#state">AgentState — the shared brain</a></li>
+      <li><a href="#pipeline">The 11-node pipeline</a></li>
+      <li><a href="#understand">Understanding: intent &amp; emotion</a></li>
+      <li><a href="#persona">Persona: the agent loader</a></li>
+      <li><a href="#memory">Memory &amp; RAG (ChromaDB)</a></li>
+      <li><a href="#prompt">Prompt building</a></li>
+      <li><a href="#llm">The LLM router</a></li>
+      <li><a href="#safety">The safety gatekeeper</a></li>
+      <li><a href="#writeback">Learning: memory writeback</a></li>
+      <li><a href="#langgraph">How LangGraph &amp; LangChain fit</a></li>
+      <li><a href="#trace">A full worked example</a></li>
+      <li><a href="#special">Special design choices</a></li>
+    </ol>
+  </nav>
+
+  <!-- ============ AT A GLANCE DIAGRAM ============ -->
+  <section id="glance">
+    <h2>0 · The whole flow — one diagram</h2>
+    <p class="h2sub">One message in, one safe reply out — the full pipeline plus the three external systems it talks to.</p>
+
+    <div class="card" style="padding:20px 16px; overflow-x:auto">
+      <svg viewBox="0 0 900 1035" width="100%" style="height:auto; max-width:900px; display:block; margin:0 auto; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" role="img" aria-label="agent-core request pipeline diagram">
+        <defs>
+          <marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/></marker>
+          <marker id="ah-sky" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7,3 L0,6 Z" fill="#0ea5e9"/></marker>
+          <marker id="ah-grn" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7,3 L0,6 Z" fill="#0f9d6e"/></marker>
+          <marker id="ah-pur" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7,3 L0,6 Z" fill="#a855f7"/></marker>
+        </defs>
+
+        <!-- phase labels (left rail) -->
+        <g font-size="10.5" font-weight="700" fill="#5b6675" letter-spacing="0.5">
+          <circle cx="20" cy="173" r="4" fill="#6366f1"/><text x="32" y="177">UNDERSTAND</text>
+          <circle cx="20" cy="337" r="4" fill="#0ea5e9"/><text x="32" y="341">PERSONA</text>
+          <circle cx="20" cy="419" r="4" fill="#0f9d6e"/><text x="32" y="423">MEMORY · READ</text>
+          <circle cx="20" cy="542" r="4" fill="#0f9d6e"/><text x="32" y="546">CONTEXT + PROMPT</text>
+          <circle cx="20" cy="665" r="4" fill="#a855f7"/><text x="32" y="669">GENERATE</text>
+          <circle cx="20" cy="788" r="4" fill="#d64545"/><text x="32" y="792">SAFETY</text>
+          <circle cx="20" cy="911" r="4" fill="#b7791f"/><text x="32" y="915">LEARN · WRITE</text>
+        </g>
+
+        <!-- spine connectors -->
+        <g stroke="#94a3b8" stroke-width="2" marker-end="url(#ah)">
+          <line x1="340" y1="52"  x2="340" y2="63"/>
+          <line x1="340" y1="118" x2="340" y2="145"/>
+          <line x1="340" y1="200" x2="340" y2="227"/>
+          <line x1="340" y1="282" x2="340" y2="309"/>
+          <line x1="340" y1="364" x2="340" y2="391"/>
+          <line x1="340" y1="446" x2="340" y2="473"/>
+          <line x1="340" y1="528" x2="340" y2="555"/>
+          <line x1="340" y1="610" x2="340" y2="637"/>
+          <line x1="340" y1="692" x2="340" y2="719"/>
+          <line x1="340" y1="774" x2="340" y2="801"/>
+          <line x1="340" y1="856" x2="340" y2="883"/>
+          <line x1="340" y1="938" x2="340" y2="965"/>
+        </g>
+
+        <!-- START -->
+        <rect x="250" y="20" width="180" height="32" rx="16" fill="#4f46e5"/>
+        <text x="340" y="40" text-anchor="middle" fill="#ffffff" font-size="12.5" font-weight="600">POST /chat/  ·  user message</text>
+
+        <!-- nodes -->
+        <!-- helper visual: each node = rounded rect + number circle + title + tag -->
+        <!-- 1 input -->
+        <g><rect x="210" y="64" width="260" height="54" rx="11" fill="#eef0fe" stroke="#6366f1" stroke-width="1.5"/>
+          <circle cx="238" cy="91" r="13" fill="#6366f1"/><text x="238" y="95" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">1</text>
+          <text x="260" y="86" fill="#1c2430" font-size="13.5" font-weight="600">input</text>
+          <text x="260" y="104" fill="#5b6675" font-size="11">validate &amp; trim the message</text></g>
+        <!-- 2 intent -->
+        <g><rect x="210" y="146" width="260" height="54" rx="11" fill="#eef0fe" stroke="#6366f1" stroke-width="1.5"/>
+          <circle cx="238" cy="173" r="13" fill="#6366f1"/><text x="238" y="177" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">2</text>
+          <text x="260" y="168" fill="#1c2430" font-size="13.5" font-weight="600">intent</text>
+          <text x="260" y="186" fill="#5b6675" font-size="11">why? crisis / question / casual</text></g>
+        <!-- 3 emotion -->
+        <g><rect x="210" y="228" width="260" height="54" rx="11" fill="#eef0fe" stroke="#6366f1" stroke-width="1.5"/>
+          <circle cx="238" cy="255" r="13" fill="#6366f1"/><text x="238" y="259" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">3</text>
+          <text x="260" y="250" fill="#1c2430" font-size="13.5" font-weight="600">emotion</text>
+          <text x="260" y="268" fill="#5b6675" font-size="11">how? sad / stressed / happy</text></g>
+        <!-- 4 agent_loader -->
+        <g><rect x="210" y="310" width="260" height="54" rx="11" fill="#e0f2fe" stroke="#0ea5e9" stroke-width="1.5"/>
+          <circle cx="238" cy="337" r="13" fill="#0ea5e9"/><text x="238" y="341" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">4</text>
+          <text x="260" y="332" fill="#1c2430" font-size="13.5" font-weight="600">agent_loader</text>
+          <text x="260" y="350" fill="#5b6675" font-size="11">persona config + behavior.txt</text></g>
+        <!-- 5 memory_retriever -->
+        <g><rect x="210" y="392" width="260" height="54" rx="11" fill="#e6f6ef" stroke="#0f9d6e" stroke-width="1.5"/>
+          <circle cx="238" cy="419" r="13" fill="#0f9d6e"/><text x="238" y="423" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">5</text>
+          <text x="260" y="414" fill="#1c2430" font-size="13.5" font-weight="600">memory_retriever</text>
+          <text x="260" y="432" fill="#5b6675" font-size="11">RAG · search 4 memory stores</text></g>
+        <!-- 6 context_builder -->
+        <g><rect x="210" y="474" width="260" height="54" rx="11" fill="#e6f6ef" stroke="#0f9d6e" stroke-width="1.5"/>
+          <circle cx="238" cy="501" r="13" fill="#0f9d6e"/><text x="238" y="505" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">6</text>
+          <text x="260" y="496" fill="#1c2430" font-size="13.5" font-weight="600">context_builder</text>
+          <text x="260" y="514" fill="#5b6675" font-size="11">merge persona + memory + mood</text></g>
+        <!-- 7 prompt_builder -->
+        <g><rect x="210" y="556" width="260" height="54" rx="11" fill="#e6f6ef" stroke="#0f9d6e" stroke-width="1.5"/>
+          <circle cx="238" cy="583" r="13" fill="#0f9d6e"/><text x="238" y="587" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">7</text>
+          <text x="260" y="578" fill="#1c2430" font-size="13.5" font-weight="600">prompt_builder</text>
+          <text x="260" y="596" fill="#5b6675" font-size="11">assemble prompt — no LLM call</text></g>
+        <!-- 8 llm -->
+        <g><rect x="210" y="638" width="260" height="54" rx="11" fill="#f3e8fd" stroke="#a855f7" stroke-width="1.5"/>
+          <circle cx="238" cy="665" r="13" fill="#a855f7"/><text x="238" y="669" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">8</text>
+          <text x="260" y="660" fill="#1c2430" font-size="13.5" font-weight="600">llm</text>
+          <text x="260" y="678" fill="#5b6675" font-size="11">the ONLY model call</text></g>
+        <!-- 9 safety -->
+        <g><rect x="210" y="720" width="260" height="54" rx="11" fill="#fdecec" stroke="#d64545" stroke-width="1.5"/>
+          <circle cx="238" cy="747" r="13" fill="#d64545"/><text x="238" y="751" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">9</text>
+          <text x="260" y="742" fill="#1c2430" font-size="13.5" font-weight="600">safety</text>
+          <text x="260" y="760" fill="#5b6675" font-size="11">score · rewrite / replace</text></g>
+        <!-- 10 response_finalizer -->
+        <g><rect x="210" y="802" width="260" height="54" rx="11" fill="#fdecec" stroke="#d64545" stroke-width="1.5"/>
+          <circle cx="238" cy="829" r="13" fill="#d64545"/><text x="238" y="833" text-anchor="middle" fill="#fff" font-size="11.5" font-weight="700">10</text>
+          <text x="260" y="824" fill="#1c2430" font-size="13.5" font-weight="600">response_finalizer</text>
+          <text x="260" y="842" fill="#5b6675" font-size="11">guarantee a non-empty reply</text></g>
+        <!-- 11 writeback -->
+        <g><rect x="210" y="884" width="260" height="54" rx="11" fill="#fdf4e3" stroke="#b7791f" stroke-width="1.5"/>
+          <circle cx="238" cy="911" r="13" fill="#b7791f"/><text x="238" y="915" text-anchor="middle" fill="#fff" font-size="11.5" font-weight="700">11</text>
+          <text x="260" y="906" fill="#1c2430" font-size="13.5" font-weight="600">writeback</text>
+          <text x="260" y="924" fill="#5b6675" font-size="11">learn &amp; store new memory</text></g>
+
+        <!-- END -->
+        <rect x="250" y="966" width="180" height="32" rx="16" fill="#1c2430"/>
+        <text x="340" y="986" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="600">response · emotion · intent</text>
+
+        <!-- external systems -->
+        <!-- Main Backend -->
+        <rect x="560" y="308" width="300" height="56" rx="11" fill="#ffffff" stroke="#0ea5e9" stroke-width="1.5"/>
+        <text x="710" y="332" text-anchor="middle" fill="#1c2430" font-size="13" font-weight="700">Main Backend API</text>
+        <text x="710" y="350" text-anchor="middle" fill="#5b6675" font-size="11">GET /api/agents/{id}/  (persona config)</text>
+        <path d="M560,336 L472,337" fill="none" stroke="#0ea5e9" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#ah-sky)"/>
+        <text x="515" y="326" text-anchor="middle" fill="#0ea5e9" font-size="9.5" font-weight="600">fetch</text>
+
+        <!-- ChromaDB -->
+        <rect x="560" y="432" width="300" height="74" rx="11" fill="#ffffff" stroke="#0f9d6e" stroke-width="1.5"/>
+        <text x="710" y="456" text-anchor="middle" fill="#1c2430" font-size="13" font-weight="700">ChromaDB vector store</text>
+        <text x="710" y="474" text-anchor="middle" fill="#5b6675" font-size="11">user · conversation ·</text>
+        <text x="710" y="490" text-anchor="middle" fill="#5b6675" font-size="11">emotional · agent_behavior</text>
+        <!-- read arrow -> node 5 -->
+        <path d="M560,452 L472,421" fill="none" stroke="#0f9d6e" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#ah-grn)"/>
+        <text x="516" y="432" text-anchor="middle" fill="#0f9d6e" font-size="9.5" font-weight="600">read</text>
+        <!-- write arrow from node 11 -->
+        <path d="M470,911 H888 V470 H862" fill="none" stroke="#0f9d6e" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#ah-grn)"/>
+        <text x="690" y="903" text-anchor="middle" fill="#0f9d6e" font-size="9.5" font-weight="600">store new memories &#8599;</text>
+
+        <!-- LLM Router -->
+        <rect x="560" y="638" width="300" height="56" rx="11" fill="#ffffff" stroke="#a855f7" stroke-width="1.5"/>
+        <text x="710" y="662" text-anchor="middle" fill="#1c2430" font-size="13" font-weight="700">LLM Router</text>
+        <text x="710" y="680" text-anchor="middle" fill="#5b6675" font-size="11">OpenAI &#8594; Gemini  (auto-fallback)</text>
+        <path d="M560,666 L472,665" fill="none" stroke="#a855f7" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#ah-pur)"/>
+        <text x="516" y="656" text-anchor="middle" fill="#a855f7" font-size="9.5" font-weight="600">generate</text>
+      </svg>
+    </div>
+
+    <p style="font-size:14px; color:var(--muted); margin-top:14px">
+      <strong>How to read it:</strong> the centre column is the linear <em>LangGraph</em> pipeline (nodes 1&ndash;11) that every message walks through, top to bottom. The left rail groups the nodes into phases. The three white boxes on the right are the only <em>external</em> systems agent-core talks to: it <span style="color:#0ea5e9;font-weight:600">fetches persona config</span> from the Main Backend (node&nbsp;4), <span style="color:#0f9d6e;font-weight:600">reads</span> relevant memories before generating (node&nbsp;5) and <span style="color:#0f9d6e;font-weight:600">writes</span> new ones after (node&nbsp;11), and calls a model through the <span style="color:#a855f7;font-weight:600">LLM Router</span> at exactly one place (node&nbsp;8). Every remaining step is deterministic and in-process. The sections below zoom into each part.
+    </p>
+  </section>
+
+  <!-- ============ BIG PICTURE ============ -->
+  <section id="big">
+    <h2>1 · The big picture</h2>
+    <p class="h2sub">agent-core is a standalone “AI brain” service. It knows nothing about users, billing, or auth.</p>
+
+    <p><strong>agent-core</strong> is a separate Django project whose only job is: <em>given one user message, produce one in-character, safe, memory-aware reply.</em> It is deliberately isolated from the product:</p>
+    <ul>
+      <li>It has <strong>no user accounts, no JWT, no payments</strong> — those live in the Main Backend (<code>companio-main-backend</code>).</li>
+      <li>It exposes essentially <strong>one real endpoint</strong>, <code>POST /chat/</code>, which is <code>AllowAny</code> (an internal service call, not a public API).</li>
+      <li>Its own Django DB is a throwaway <strong>SQLite</strong> file. The important storage — long-term memory — lives in a <strong>ChromaDB</strong> vector store on disk.</li>
+    </ul>
+
+    <div class="card">
+      <h3 style="margin-top:0">Where it sits</h3>
+      <div class="flowmini">react-frontend ──JWT──▶ companio-main-backend ──HTTP──▶ agent-core (this service)</div>
+      <p style="margin-bottom:0">Two backends depend on each other at runtime, in <em>opposite directions</em>:</p>
+      <ul style="margin-bottom:0">
+        <li><strong>Main → agent-core:</strong> forwards a chat turn to <code>POST /chat/</code>.</li>
+        <li><strong>agent-core → Main:</strong> calls back <code>GET /api/agents/&lt;id&gt;/</code> to fetch that agent’s persona config (the <em>agent loader</em>).</li>
+      </ul>
+    </div>
+
+    <div class="note warn">
+      <strong>Reality check on the wiring</strong>
+      Today the Main Backend’s real chat flow still uses a mock/legacy path. agent-core is reachable only through the thin testing gateway <code>POST /api/v1/chat/</code>. So this document describes a fully-built engine that is not yet the production default — connecting it is the pending integration step.
+    </div>
+  </section>
+
+  <!-- ============ CONTRACT ============ -->
+  <section id="contract">
+    <h2>2 · The one endpoint &amp; its contract</h2>
+    <p class="h2sub"><code>api/chat.py</code> → <code>services/chat_service.py</code> → the graph.</p>
+
+    <p>Everything enters through a tiny DRF view. It validates the payload with a Pydantic model and hands off to the service layer. It <strong>never leaks internals</strong> — any pipeline error becomes a generic 503.</p>
+
+    <pre><span class="c-com"># POST /chat/  — request</span>
+{
+  <span class="c-str">"user_id"</span>:    <span class="c-str">"42"</span>,
+  <span class="c-str">"agent_id"</span>:   <span class="c-str">"best_friend"</span>,   <span class="c-com"># must match a folder in agents/ AND an Agent.key in Main</span>
+  <span class="c-str">"session_id"</span>: <span class="c-str">"sess-abc"</span>,
+  <span class="c-str">"message"</span>:    <span class="c-str">"my name is Kavinda and I'm learning AI, but I feel exhausted"</span>
+}
+
+<span class="c-com"># 200 — response (deliberately minimal)</span>
+{
+  <span class="c-str">"response"</span>: <span class="c-str">"..."</span>,     <span class="c-com"># the final, safety-checked reply</span>
+  <span class="c-str">"emotion"</span>:  <span class="c-str">"stressed"</span>,
+  <span class="c-str">"intent"</span>:   <span class="c-str">"emotional"</span>
+}</pre>
+
+    <p>The service function is only a few lines — it runs the graph and shapes the output:</p>
+    <pre><span class="c-kw">def</span> <span class="c-fn">process_chat</span>(message: ChatMessage) -&gt; dict:
+    final_state = <span class="c-fn">run_workflow</span>(
+        user_id=message.user_id, agent_id=message.agent_id,
+        session_id=message.session_id, message=message.message,
+    )
+    <span class="c-kw">return</span> {
+        <span class="c-str">"response"</span>: final_state.get(<span class="c-str">"response"</span>, <span class="c-str">""</span>),
+        <span class="c-str">"emotion"</span>:  final_state.get(<span class="c-str">"emotion"</span>),
+        <span class="c-str">"intent"</span>:   final_state.get(<span class="c-str">"intent"</span>),
+    }</pre>
+    <p>So all the intelligence is inside <code>run_workflow</code> — the LangGraph pipeline. That is what the rest of this page unpacks.</p>
+  </section>
+
+  <!-- ============ STATE ============ -->
+  <section id="state">
+    <h2>3 · AgentState — the shared brain</h2>
+    <p class="h2sub"><code>graph/state.py</code> — one <code>TypedDict</code> that flows through every node.</p>
+
+    <p>LangGraph works by passing a single <strong>state object</strong> between functions. Each node reads the fields it needs and returns a <em>partial update</em>; LangGraph merges that update back into the state and passes it to the next node. <code>AgentState</code> is that object, organized in layers that mirror the pipeline:</p>
+
+    <table class="bordered">
+      <tr><th>Layer</th><th>Fields</th><th>Filled by</th></tr>
+      <tr><td><strong>Input</strong></td><td><code>user_id</code>, <code>agent_id</code>, <code>session_id</code>, <code>message</code></td><td>the request</td></tr>
+      <tr><td><strong>Understanding</strong></td><td><code>intent</code>, <code>emotion</code></td><td>classifier nodes</td></tr>
+      <tr><td><strong>Agent</strong></td><td><code>agent_config</code></td><td>agent loader node</td></tr>
+      <tr><td><strong>Memory</strong></td><td><code>user_memory</code>, <code>conversation_memory</code>, <code>agent_memory</code></td><td>memory retriever node</td></tr>
+      <tr><td><strong>Context</strong></td><td><code>context</code> (merged dict)</td><td>context builder node</td></tr>
+      <tr><td><strong>Prompt</strong></td><td><code>prompt</code></td><td>prompt builder node</td></tr>
+      <tr><td><strong>Output</strong></td><td><code>response</code></td><td>LLM node, then safety/finalizer</td></tr>
+      <tr><td><strong>Safety</strong></td><td><code>safety_flags</code></td><td>every node can raise a flag; safety node scores</td></tr>
+      <tr><td><strong>Learning</strong></td><td><code>memory_updates</code></td><td>writeback node</td></tr>
+    </table>
+
+    <div class="note good">
+      <strong>The golden rule of this graph</strong>
+      Every external call (memory, agent config, LLM) is wrapped in <code>try/except</code>. A failure sets a <code>safety_flag</code> and returns empty data — it <em>never</em> crashes the graph. The user always gets <em>some</em> reply.
+    </div>
+  </section>
+
+  <!-- ============ PIPELINE ============ -->
+  <section id="pipeline">
+    <h2>4 · The 11-node pipeline</h2>
+    <p class="h2sub"><code>graph/workflow.py</code> — a single linear <code>StateGraph</code>, compiled once and reused.</p>
+
+    <p>This is the heart of the system. The message walks through eleven nodes, START → END, each one enriching the state. Colours group the nodes by responsibility.</p>
+
+    <div class="pipe">
+      <div class="pstep grp-understand"><div class="idx"><div class="dot">1</div><div class="line"></div></div>
+        <div class="body"><h4>input <span class="tag">input_node</span></h4><p>Trims the message, checks required fields are present. Flags <code>empty_message</code> / <code>invalid_input</code> if not.</p></div></div>
+
+      <div class="pstep grp-understand"><div class="idx"><div class="dot">2</div><div class="line"></div></div>
+        <div class="body"><h4>intent <span class="tag">intent_node</span></h4><p>Classifies <em>why</em> the user is speaking → <code>question / emotional / casual / crisis</code>. A <code>crisis</code> intent immediately raises a safety flag.</p></div></div>
+
+      <div class="pstep grp-understand"><div class="idx"><div class="dot">3</div><div class="line"></div></div>
+        <div class="body"><h4>emotion <span class="tag">emotion_node</span></h4><p>Detects <em>how</em> the user feels → <code>happy / sad / stressed / neutral</code>.</p></div></div>
+
+      <div class="pstep grp-agent"><div class="idx"><div class="dot">4</div><div class="line"></div></div>
+        <div class="body"><h4>agent_loader <span class="tag">agent_loader_node</span></h4><p>Loads the persona: fetches config from the Main Backend and merges the local <code>behavior.txt</code>. On failure → <code>agent_unavailable</code> flag, empty config, graph continues.</p></div></div>
+
+      <div class="pstep grp-memory"><div class="idx"><div class="dot">5</div><div class="line"></div></div>
+        <div class="body"><h4>memory_retriever <span class="tag">memory_retriever_node</span></h4><p>The <strong>RAG retrieval</strong> step. Similarity-searches all four ChromaDB collections scoped to this user+agent, top-5 each.</p></div></div>
+
+      <div class="pstep grp-memory"><div class="idx"><div class="dot">6</div><div class="line"></div></div>
+        <div class="body"><h4>context_builder <span class="tag">context_builder_node</span></h4><p>Merges everything the prompt needs — persona, behavior rules, safety rules, intent, emotion, message, and all retrieved memories — into one <code>context</code> dict.</p></div></div>
+
+      <div class="pstep grp-memory"><div class="idx"><div class="dot">7</div><div class="line"></div></div>
+        <div class="body"><h4>prompt_builder <span class="tag">prompt_builder_node</span></h4><p>Assembles a structured, sectioned prompt string (<code>[PERSONA]</code>, <code>[USER MEMORY]</code>, …). <strong>No LLM call here</strong> — just text assembly.</p></div></div>
+
+      <div class="pstep grp-gen"><div class="idx"><div class="dot">8</div><div class="line"></div></div>
+        <div class="body"><h4>llm <span class="tag">llm_node</span></h4><p>The <strong>only</strong> place a model is called. Hands the prompt to the LLM router, which picks a provider and generates text. Crisis turns request the highest-quality provider.</p></div></div>
+
+      <div class="pstep grp-safety"><div class="idx"><div class="dot">9</div><div class="line"></div></div>
+        <div class="body"><h4>safety <span class="tag">safety_node</span></h4><p>The <strong>post-LLM gatekeeper</strong>. Scores the reply; rewrites or replaces it if it detects crisis, manipulation, dependency, or isolation.</p></div></div>
+
+      <div class="pstep grp-safety"><div class="idx"><div class="dot">10</div><div class="line"></div></div>
+        <div class="body"><h4>response_finalizer <span class="tag">response_finalizer_node</span></h4><p>Guarantees a non-empty, clean reply — falls back to a gentle default if everything upstream produced nothing.</p></div></div>
+
+      <div class="pstep grp-learn"><div class="idx"><div class="dot">11</div><div class="line"></div></div>
+        <div class="body"><h4>writeback <span class="tag">writeback_node</span></h4><p>The <strong>learning loop</strong>. Summarizes the exchange, extracts durable facts, and stores new memories in ChromaDB — so next time the agent remembers.</p></div></div>
+    </div>
+
+    <p>In code, the wiring is just a straight chain of edges:</p>
+    <pre>builder.<span class="c-fn">add_edge</span>(START, <span class="c-str">"input"</span>)
+builder.<span class="c-fn">add_edge</span>(<span class="c-str">"input"</span>, <span class="c-str">"intent"</span>)
+builder.<span class="c-fn">add_edge</span>(<span class="c-str">"intent"</span>, <span class="c-str">"emotion"</span>)
+<span class="c-com"># … agent_loader → memory_retriever → context_builder → prompt_builder …</span>
+builder.<span class="c-fn">add_edge</span>(<span class="c-str">"prompt_builder"</span>, <span class="c-str">"llm"</span>)
+builder.<span class="c-fn">add_edge</span>(<span class="c-str">"llm"</span>, <span class="c-str">"safety"</span>)
+builder.<span class="c-fn">add_edge</span>(<span class="c-str">"safety"</span>, <span class="c-str">"response_finalizer"</span>)
+builder.<span class="c-fn">add_edge</span>(<span class="c-str">"response_finalizer"</span>, <span class="c-str">"writeback"</span>)
+builder.<span class="c-fn">add_edge</span>(<span class="c-str">"writeback"</span>, END)
+workflow = builder.<span class="c-fn">compile</span>()   <span class="c-com"># compiled once at import, reused for every request</span></pre>
+
+    <div class="note">
+      <strong>Why a graph instead of one big function?</strong>
+      Each step is isolated, independently testable, and swappable. The state contract makes data flow explicit, and LangGraph gives you a place to later add branching (e.g. skip the LLM entirely on a crisis) without rewriting the flow.
+    </div>
+  </section>
+
+  <!-- ============ UNDERSTANDING ============ -->
+  <section id="understand">
+    <h2>5 · Understanding — intent &amp; emotion</h2>
+    <p class="h2sub"><code>services/classifiers/</code> · <span class="pill det">deterministic · no LLM</span></p>
+
+    <p>Before spending money on an LLM, the system cheaply figures out <em>what kind</em> of message this is. Both classifiers are pure rule/keyword matching — fast, free, and predictable.</p>
+
+    <div class="two">
+      <div class="card" style="margin:0">
+        <h3 style="margin-top:0">Intent — <em>why</em> they’re talking</h3>
+        <p style="font-size:14px;color:var(--muted)">Priority-ordered, so a safety signal is never masked:</p>
+        <ol style="font-size:14.5px;margin:0;padding-left:20px">
+          <li><strong>crisis</strong> — self-harm / suicide patterns (checked first)</li>
+          <li><strong>emotional</strong> — “sad”, “lonely”, “heartbroken”…</li>
+          <li><strong>question</strong> — ends with “?” or “how/what/why…”</li>
+          <li><strong>casual</strong> — the default</li>
+        </ol>
+      </div>
+      <div class="card" style="margin:0">
+        <h3 style="margin-top:0">Emotion — <em>how</em> they feel</h3>
+        <p style="font-size:14px;color:var(--muted)">Distress outranks positivity, so mixed messages read as the harder feeling:</p>
+        <ul style="font-size:14.5px;margin:0;padding-left:20px">
+          <li><strong>sad</strong> → “down”, “empty”, “hurt”…</li>
+          <li><strong>stressed</strong> → “overwhelmed”, “deadline”, “burnout”…</li>
+          <li><strong>happy</strong> → “great”, “excited”, “grateful”…</li>
+          <li><strong>neutral</strong> → the default</li>
+        </ul>
+      </div>
+    </div>
+
+    <p>These two labels do real work downstream: <code>intent = "crisis"</code> routes to the strongest LLM <em>and</em> triggers a crisis safety substitution; the detected emotion is injected into the prompt and stored as emotional memory.</p>
+  </section>
+
+  <!-- ============ PERSONA ============ -->
+  <section id="persona">
+    <h2>6 · Persona — the agent loader</h2>
+    <p class="h2sub"><code>services/agent_loader.py</code> · <span class="pill io">HTTP · file I/O</span></p>
+
+    <p>There are <strong>no hard-coded agents</strong>. A persona is assembled at request time from three independent sources, merged into an <code>AgentProfile</code>:</p>
+
+    <table class="bordered">
+      <tr><th>Source</th><th>Provides</th><th>Where from</th></tr>
+      <tr><td>Main Backend config</td><td>identity, <code>display_name</code>, <code>persona_prompt</code>, <code>safety_rules</code></td><td><code>GET /api/agents/&lt;id&gt;/</code> (HTTP)</td></tr>
+      <tr><td><code>behavior.txt</code></td><td>tone, communication style, boundaries, behavioral rules</td><td>local file <code>agents/&lt;id&gt;/behavior.txt</code></td></tr>
+      <tr><td>safety rules</td><td>which safety policies apply</td><td>carried on the backend config</td></tr>
+    </table>
+
+    <p>The behavior file is plain text a non-engineer can edit. For example, the Best Friend agent’s file says:</p>
+    <pre><span class="c-com">TONE</span>
+- Warm, casual, and upbeat. Talk like a close friend, not an assistant.
+<span class="c-com">BOUNDARIES</span>
+- Be supportive, never romantic or flirtatious.
+- Do not give medical, legal, or financial advice; gently suggest a professional.</pre>
+
+    <div class="note good">
+      <strong>Fail-open on config, fail-closed on disable</strong>
+      A missing <code>behavior.txt</code> just yields an empty string (no crash). A missing Main Backend is flagged and the graph continues with an empty persona. But an <em>explicit</em> <code>enabled: false</code> raises <code>AgentDisabledError</code> — a disabled agent is intentionally refused.
+    </div>
+  </section>
+
+  <!-- ============ MEMORY ============ -->
+  <section id="memory">
+    <h2>7 · Memory &amp; RAG (ChromaDB)</h2>
+    <p class="h2sub"><code>memory/</code> · this is what makes the companion <em>remember you</em>.</p>
+
+    <p>This is the “R” and “A” of RAG — <strong>Retrieval-Augmented Generation</strong>. Instead of stuffing the whole chat history into every prompt, the system stores memories as vectors and retrieves only the few most relevant ones for the current message. Memory is split into four collections:</p>
+
+    <div class="two">
+      <div class="collcard"><h4>user_memory</h4><p>Durable facts &amp; preferences — name, job, what they’re learning, likes/dislikes.</p></div>
+      <div class="collcard"><h4>conversation_memory</h4><p>Summaries of past exchanges, for continuity across sessions.</p></div>
+      <div class="collcard"><h4>emotional_memory</h4><p>Mood events &amp; emotional patterns over time.</p></div>
+      <div class="collcard"><h4>agent_behavior_memory</h4><p>Behavior / personality / tone chunks tied to the agent.</p></div>
+    </div>
+
+    <h3>How retrieval works (node 5)</h3>
+    <p>For the incoming message, <code>get_relevant_memories</code> queries each collection and returns the closest matches — always filtered by <code>user_id</code> <em>and</em> <code>agent_id</code> so memories never leak across users or personas:</p>
+    <pre>memories = <span class="c-fn">get_relevant_memories</span>(
+    query=state[<span class="c-str">"message"</span>],
+    user_id=state[<span class="c-str">"user_id"</span>], agent_id=state[<span class="c-str">"agent_id"</span>],
+    top_k=<span class="c-num">5</span>,
+)
+<span class="c-com"># Chroma filter built per query — scoping is enforced, not optional:</span>
+where = {<span class="c-str">"$and"</span>: [{<span class="c-str">"user_id"</span>: user_id}, {<span class="c-str">"agent_id"</span>: agent_id}]}</pre>
+
+    <h3>The storage engine</h3>
+    <ul>
+      <li><strong>ChromaDB persistent client</strong> (<code>chroma_client.py</code>) — one lazily-created client, on-disk at <code>CHROMA_DB_PATH</code>.</li>
+      <li><strong>Cosine distance</strong> collections (<code>collections.py</code>), matching unit-normalized embeddings.</li>
+      <li><strong>Writer</strong> (<code>memory_writer.py</code>) — embeds content and stamps every record with <code>user_id</code>, <code>agent_id</code>, <code>timestamp</code>, <code>memory_type</code> so it’s always filterable.</li>
+    </ul>
+
+    <div class="note warn">
+      <strong>Embeddings are a placeholder today</strong>
+      <code>embeddings.py</code> ships a <em>deterministic hash-based</em> pseudo-embedding (SHA-256 → 256-dim unit vector), not a real semantic model. It makes the memory engine fully functional offline with zero API cost, and identical text always maps to the identical vector. It’s designed behind an interface so a real embedding provider (e.g. OpenAI) can be dropped in later <em>without touching the writer or retriever</em>. Until then, “similarity” is closer to fuzzy text identity than true semantic meaning.
+    </div>
+  </section>
+
+  <!-- ============ PROMPT ============ -->
+  <section id="prompt">
+    <h2>8 · Prompt building</h2>
+    <p class="h2sub"><code>prompt_builder_node</code> · <span class="pill det">no LLM — pure text assembly</span></p>
+
+    <p>Node 7 turns the merged context into a single, clearly-sectioned prompt. Empty sections are skipped, so the model only sees what’s relevant:</p>
+    <pre>[PERSONA]
+&lt;persona_prompt from Main Backend&gt;
+
+[BEHAVIOR RULES]
+&lt;contents of behavior.txt&gt;
+
+[USER MEMORY]
+- User's name is Kavinda
+- User is learning AI
+
+[CONVERSATION MEMORY]
+- Conversation summary (emotional tone: stressed). Latest user focus: …
+
+[EMOTIONAL MEMORY]
+- User expressed feeling stressed.
+
+[UNDERSTANDING]
+Detected intent: emotional
+Detected emotion: stressed
+
+[USER MESSAGE]
+my name is Kavinda and I'm learning AI, but I feel exhausted
+
+[TASK]
+Respond in character, honoring the persona, behavior rules, and the user's emotional state.</pre>
+    <p>This structured layout is what lets a general LLM behave like a specific, memory-aware companion.</p>
+  </section>
+
+  <!-- ============ LLM ROUTER ============ -->
+  <section id="llm">
+    <h2>9 · The LLM router</h2>
+    <p class="h2sub"><code>llm/llm_router.py</code> · the central brain that picks a model.</p>
+
+    <p>Every model call in the system goes through one router. It chooses a provider based on the request’s needs and <strong>falls back automatically</strong> if the preferred one is missing or errors.</p>
+
+    <table class="bordered">
+      <tr><th>Situation</th><th>Provider order</th></tr>
+      <tr><td>High quality needed (or <code>intent == "crisis"</code>)</td><td><code>openai</code> → <code>gemini</code></td></tr>
+      <tr><td>Low-cost preferred</td><td><code>gemini</code> → <code>openai</code></td></tr>
+      <tr><td>Default</td><td><code>openai</code> → <code>gemini</code></td></tr>
+    </table>
+
+    <pre><span class="c-kw">for</span> name <span class="c-kw">in</span> order:
+    provider = self.providers.get(name)
+    <span class="c-kw">if</span> provider <span class="c-kw">is</span> None <span class="c-kw">or not</span> provider.<span class="c-fn">is_available</span>():
+        <span class="c-kw">continue</span>                          <span class="c-com"># no API key / SDK not installed → skip</span>
+    <span class="c-kw">try</span>:
+        text = provider.<span class="c-fn">generate</span>(prompt, **kwargs)
+        <span class="c-kw">return</span> {<span class="c-str">"provider"</span>: name, <span class="c-str">"response"</span>: text, <span class="c-str">"ok"</span>: True}
+    <span class="c-kw">except</span> Exception:                      <span class="c-com"># any failure → try the next provider</span>
+        <span class="c-kw">continue</span>
+<span class="c-com"># nothing worked → safe fallback text, ok=False (still no crash)</span></pre>
+
+    <p>Each provider (<code>openai_provider.py</code>, <code>gemini_provider.py</code>) implements a tiny <code>LLMProvider</code> interface — <code>generate()</code> and <code>is_available()</code>. The SDK and API key are resolved <strong>lazily</strong>, so importing a provider never makes a network call and <code>is_available()</code> is always safe to probe. Adding a third provider (e.g. Claude) is just one new class.</p>
+
+    <div class="note good">
+      <strong>Graceful degradation, end to end</strong>
+      No key configured? The provider is skipped. All providers down? The router returns a warm fallback line (“I’m having trouble responding right now, but I’m still here…”). The user is never shown a stack trace.
+    </div>
+  </section>
+
+  <!-- ============ SAFETY ============ -->
+  <section id="safety">
+    <h2>10 · The safety gatekeeper</h2>
+    <p class="h2sub"><code>safety/engine.py</code> + <code>graph/safety_node.py</code> · <span class="pill det">deterministic · runs after the LLM</span></p>
+
+    <p>The LLM is never trusted to be safe on its own. After generation, a <strong>deterministic, stateless</strong> engine inspects the reply and can override it. Design principle: <em>never depend on an LLM to enforce safety.</em></p>
+
+    <h3>What it checks</h3>
+    <table class="bordered">
+      <tr><th>Check</th><th>Looks for</th><th>Action</th></tr>
+      <tr><td>Crisis</td><td>self-harm / suicide language in the <em>user message</em></td><td>Replace reply with a supportive, advice-free crisis message</td></tr>
+      <tr><td>Emotional dependency</td><td>“you’re all I have”, or AI saying “you only need me”</td><td>Rewrite</td></tr>
+      <tr><td>Manipulation</td><td>guilt/control language in the reply</td><td>Rewrite</td></tr>
+      <tr><td>Isolation</td><td>“cut off your friends”, “leave your family”</td><td>Rewrite</td></tr>
+      <tr><td>False identity</td><td>“I’m a real human”, “we can meet in person”</td><td>Rewrite</td></tr>
+    </table>
+
+    <h3>How the decision is made</h3>
+    <p>The engine computes a <strong>safety score</strong> starting at <code>1.0</code> and subtracting penalties for each harm found. If crisis is detected the reply is <em>replaced</em> outright; otherwise if the score falls below the threshold (or manipulation/dependency is present) the reply is <em>rewritten</em> — unsafe sentences are stripped and a grounding statement is appended:</p>
+    <pre><span class="c-com"># graph/safety_node.py — the gate</span>
+<span class="c-kw">if</span> crisis:
+    final_response = engine.<span class="c-fn">build_crisis_response</span>()          <span class="c-com"># full replacement</span>
+    safety_flags[<span class="c-str">"rewrite_reason"</span>] = <span class="c-str">"crisis"</span>
+<span class="c-kw">elif</span> response <span class="c-kw">and</span> (manipulation <span class="c-kw">or</span> dependency <span class="c-kw">or</span> score &lt; threshold):
+    final_response = engine.<span class="c-fn">rewrite_unsafe_response</span>(response)  <span class="c-com"># strip + ground</span></pre>
+
+    <p>The grounding statement always reminds the user the companion is an AI, not a substitute for real relationships — the core ethical stance of the product baked into code.</p>
+  </section>
+
+  <!-- ============ WRITEBACK ============ -->
+  <section id="writeback">
+    <h2>11 · Learning — memory writeback</h2>
+    <p class="h2sub"><code>memory/writeback/</code> · the final node, runs <em>after</em> the reply is decided.</p>
+
+    <p>This is what makes the agent get to know you over time. Once the reply is finalized, node 11 learns from the exchange in four deterministic steps:</p>
+
+    <div class="pipe" style="margin-top:14px">
+      <div class="pstep grp-learn"><div class="idx"><div class="dot">A</div><div class="line"></div></div>
+        <div class="body"><h4>Summarize <span class="tag">summarizer.py</span></h4><p>Condense the exchange into one short summary line (with emotional tone) → stored in <code>conversation_memory</code>.</p></div></div>
+      <div class="pstep grp-learn"><div class="idx"><div class="dot">B</div><div class="line"></div></div>
+        <div class="body"><h4>Extract facts <span class="tag">fact_extractor.py</span></h4><p>Regex patterns pull durable facts: “my name is ___” → <em>User's name is Kavinda</em>; “I’m learning ___” → <em>User is learning AI</em>. Plus an emotional note if non-neutral.</p></div></div>
+      <div class="pstep grp-learn"><div class="idx"><div class="dot">C</div><div class="line"></div></div>
+        <div class="body"><h4>Classify <span class="tag">memory_classifier.py</span></h4><p>Route each fact to the right collection by its type — <code>user_fact</code> → user_memory, <code>emotional</code> → emotional_memory, etc.</p></div></div>
+      <div class="pstep grp-learn"><div class="idx"><div class="dot">D</div><div class="line"></div></div>
+        <div class="body"><h4>Store <span class="tag">memory_writer.py</span></h4><p>Embed &amp; persist into ChromaDB with full metadata. Returns a list of what was written (<code>memory_updates</code>).</p></div></div>
+    </div>
+
+    <p>Next time this user messages this agent, node 5 will retrieve these exact memories — closing the loop that turns a stateless LLM into a companion with continuity.</p>
+
+    <div class="note">
+      <strong>Cheap and reliable by design</strong>
+      Summarizer, fact extractor, and classifier are all deterministic (no LLM), so learning from every turn is fast and free. Each is behind a clean seam, so a future step can upgrade any one of them to an LLM-powered version without touching the engine. There’s also an <code>aprocess_writeback</code> async wrapper ready for offloading this work.
+    </div>
+  </section>
+
+  <!-- ============ LANGGRAPH / LANGCHAIN ============ -->
+  <section id="langgraph">
+    <h2>12 · How LangGraph &amp; LangChain actually fit</h2>
+    <p class="h2sub">The honest answer — because you specifically asked about both.</p>
+
+    <div class="two">
+      <div class="card" style="margin:0">
+        <h3 style="margin-top:0">LangGraph — <span style="color:var(--green)">actively used</span></h3>
+        <p style="font-size:14.5px">LangGraph is the <strong>orchestration engine</strong>. The entire pipeline is one <code>StateGraph(AgentState)</code>:</p>
+        <ul style="font-size:14px;margin:0;padding-left:18px">
+          <li><code>add_node(name, fn)</code> registers each step</li>
+          <li><code>add_edge(a, b)</code> defines the linear flow</li>
+          <li><code>compile()</code> builds a runnable graph (once, at import)</li>
+          <li><code>workflow.invoke(initial_state)</code> runs one message end-to-end</li>
+        </ul>
+        <p style="font-size:14.5px;margin-bottom:0">It handles passing &amp; merging <code>AgentState</code> between nodes. That’s the whole “agentic” machinery here.</p>
+      </div>
+      <div class="card" style="margin:0">
+        <h3 style="margin-top:0">LangChain — <span style="color:var(--amber)">declared, not used (yet)</span></h3>
+        <p style="font-size:14.5px"><code>langchain</code> is listed in <code>requirements.txt</code> under “AI stack (reserved for later steps)”, but a full-codebase import scan shows <strong>it is never actually imported</strong>. The only graph library in use is <code>langgraph</code>.</p>
+        <p style="font-size:14.5px;margin-bottom:0">The LLM providers call the <strong>OpenAI and Gemini SDKs directly</strong> — no LangChain chains, prompts, or model wrappers. So today LangChain is a reserved dependency, not a working part of the flow.</p>
+      </div>
+    </div>
+
+    <div class="note warn">
+      <strong>So, precisely:</strong> When an agent finds a response, <em>LangGraph</em> drives the step-by-step flow and state, while the actual generation is a <em>direct SDK call</em> inside <code>llm_node</code> → <code>llm_router</code> → provider. LangChain plays no runtime role at present.
+    </div>
+
+    <p>Another thing worth naming: this is a graph, but currently a <strong>purely linear</strong> one — no conditional edges, no loops, no tool-calling agent. The “agentic” behavior (deciding to comfort, ask follow-ups, etc.) is expressed through the <em>prompt + persona + safety</em> layers, not through dynamic graph branching. The structure is clearly set up to add real branching later (e.g. short-circuit to the crisis response and skip the LLM).</p>
+  </section>
+
+  <!-- ============ TRACE ============ -->
+  <section id="trace">
+    <h2>13 · A full worked example</h2>
+    <p class="h2sub">Following one real message through all 11 nodes.</p>
+
+    <p>Input: <code>{ user_id: "42", agent_id: "best_friend", message: "my name is Kavinda and I'm learning AI, but I feel exhausted" }</code></p>
+
+    <table class="bordered">
+      <tr><th>#</th><th>Node</th><th>What happens</th><th>State after</th></tr>
+      <tr><td>1</td><td>input</td><td>Message trimmed, all fields present</td><td>clean message</td></tr>
+      <tr><td>2</td><td>intent</td><td>No crisis; “exhausted”-style distress → </td><td><code>intent = emotional</code></td></tr>
+      <tr><td>3</td><td>emotion</td><td>“exhausted” matches stressed words</td><td><code>emotion = stressed</code></td></tr>
+      <tr><td>4</td><td>agent_loader</td><td>Fetch Best Friend config + <code>behavior.txt</code></td><td><code>agent_config</code> filled</td></tr>
+      <tr><td>5</td><td>memory_retriever</td><td>Search 4 collections for “name / learning / exhausted” (first-ever msg → empty)</td><td>memories: <code>[]</code></td></tr>
+      <tr><td>6</td><td>context_builder</td><td>Merge persona + rules + intent/emotion + message</td><td><code>context</code> ready</td></tr>
+      <tr><td>7</td><td>prompt_builder</td><td>Build the sectioned prompt (no memory sections this time)</td><td><code>prompt</code> string</td></tr>
+      <tr><td>8</td><td>llm</td><td>Router → OpenAI generates a warm, supportive reply</td><td><code>response</code> drafted</td></tr>
+      <tr><td>9</td><td>safety</td><td>Score 1.0, no harms → reply passes untouched</td><td><code>safety_score = 1.0</code></td></tr>
+      <tr><td>10</td><td>response_finalizer</td><td>Non-empty → keep as-is</td><td>final reply</td></tr>
+      <tr><td>11</td><td>writeback</td><td>Store: summary, “User's name is Kavinda”, “User is learning AI”, “User expressed feeling stressed”</td><td>4 new memories</td></tr>
+    </table>
+
+    <p>Result returned to the caller: <code>{ response: "…", emotion: "stressed", intent: "emotional" }</code>. And critically — the <strong>next</strong> time Kavinda messages the Best Friend agent, node 5 will retrieve his name, that he’s learning AI, and that he’s been stressed. That is the whole product promise, realized in one pass through the graph.</p>
+  </section>
+
+  <!-- ============ SPECIAL ============ -->
+  <section id="special">
+    <h2>14 · Special design choices worth knowing</h2>
+
+    <table class="bordered">
+      <tr><th>Choice</th><th>Why it matters</th></tr>
+      <tr><td><strong>Deterministic-first</strong> — intent, emotion, fact extraction, summarizing, and safety are all rule-based</td><td>Fast, free, testable, and predictable. The LLM is used only for the one thing it’s uniquely good at: generating the reply.</td></tr>
+      <tr><td><strong>Safety runs after the LLM, deterministically</strong></td><td>The model can’t talk its way past the safety layer. Crisis handling never depends on the model behaving.</td></tr>
+      <tr><td><strong>Never-crash graph</strong> — every external call is wrapped</td><td>Memory down, agent config unreachable, all LLMs failing — the user still gets a coherent reply.</td></tr>
+      <tr><td><strong>Provider-agnostic LLM layer</strong> with lazy loading + auto-fallback</td><td>Swap or add models without touching the pipeline; missing keys degrade gracefully instead of erroring.</td></tr>
+      <tr><td><strong>Memory scoped by user + agent</strong> on every read and write</td><td>Hard isolation — one user’s memories can never surface for another, and each persona keeps its own memory of you.</td></tr>
+      <tr><td><strong>Config-driven personas</strong> (Main config + <code>behavior.txt</code>)</td><td>New agents need no code — a DB row plus a text file. Non-engineers can tune tone.</td></tr>
+      <tr><td><strong>Clear seams for upgrades</strong> — embeddings, summarizer, classifiers all behind interfaces</td><td>The placeholder embedding and rule-based writeback can each become LLM/vector-model powered later without a rewrite.</td></tr>
+    </table>
+
+    <div class="note danger">
+      <strong>Two things to fix before production</strong>
+      (1) The embedding function is a hash placeholder — real semantic retrieval needs a genuine embedding model. (2) The <code>/chat/</code> endpoint (and the Main Backend’s <code>/api/v1/chat/</code> gateway) are <code>AllowAny</code> with no service-to-service auth — that must be tightened before this handles real traffic.
+    </div>
+  </section>
+
+  <footer>
+    <p>Generated from a read of <code>ai-agent-platform-backend/</code> · Companio agentic companion platform. This document describes the code as it currently stands, including the parts that are placeholders or not-yet-wired.</p>
+  </footer>
+
+</div>
+</body>
+</html>
