@@ -22,7 +22,7 @@ from typing import Any, Dict, List
 from langgraph.graph import END, START, StateGraph
 
 from graph.safety_node import safety_node
-from graph.state import AgentState
+from graph.state import AgentState, append_trace
 from llm.llm_router import route_llm
 from memory.memory_service import get_relevant_memories
 from memory.writeback.writeback_engine import process_writeback
@@ -50,7 +50,15 @@ def input_node(state: AgentState) -> Dict[str, Any]:
         safety_flags["empty_message"] = True
         logger.warning("Input node: empty message")
 
-    return {"message": message, "safety_flags": safety_flags}
+    blocked = bool(missing) or not message
+    details = {"missing": missing} if missing else {}
+    return {
+        "message": message,
+        "safety_flags": safety_flags,
+        "trace": append_trace(
+            state, "input", "blocked" if blocked else "accepted", **details
+        ),
+    }
 
 
 # ----------------------------------------------------------------------
@@ -62,7 +70,11 @@ def intent_node(state: AgentState) -> Dict[str, Any]:
     if intent == "crisis":
         safety_flags["crisis"] = True
     logger.debug("Intent node -> %s", intent)
-    return {"intent": intent, "safety_flags": safety_flags}
+    return {
+        "intent": intent,
+        "safety_flags": safety_flags,
+        "trace": append_trace(state, "intent", intent or "unknown"),
+    }
 
 
 # ----------------------------------------------------------------------
@@ -81,15 +93,26 @@ def agent_loader_node(state: AgentState) -> Dict[str, Any]:
     safety_flags = dict(state.get("safety_flags") or {})
     try:
         profile = AgentLoaderService().get_agent(state["agent_id"])
-        return {"agent_config": profile.to_dict()}
+        return {
+            "agent_config": profile.to_dict(),
+            "trace": append_trace(state, "agent_loader", "loaded"),
+        }
     except AgentLoaderError as exc:
         logger.warning("Agent loader node: could not load agent: %s", exc)
         safety_flags["agent_unavailable"] = True
-        return {"agent_config": {}, "safety_flags": safety_flags}
+        return {
+            "agent_config": {},
+            "safety_flags": safety_flags,
+            "trace": append_trace(state, "agent_loader", "unavailable", error=str(exc)),
+        }
     except Exception as exc:  # noqa: BLE001 — never crash the graph
         logger.error("Agent loader node: unexpected error: %s", exc)
         safety_flags["agent_unavailable"] = True
-        return {"agent_config": {}, "safety_flags": safety_flags}
+        return {
+            "agent_config": {},
+            "safety_flags": safety_flags,
+            "trace": append_trace(state, "agent_loader", "unavailable", error=str(exc)),
+        }
 
 
 # ----------------------------------------------------------------------
@@ -297,6 +320,17 @@ def initial_state(user_id: str, agent_id: str, session_id: str, message: str) ->
         response=None,
         safety_flags={},
         memory_updates=[],
+        # Agentic control layer (working memory for loops & decisions).
+        route=None,
+        search_query=None,
+        retrieved=[],
+        relevance_grade=None,
+        retrieve_iters=0,
+        tool_calls=[],
+        tool_results=[],
+        reflection=None,
+        reflect_iters=0,
+        trace=[],
     )
 
 
