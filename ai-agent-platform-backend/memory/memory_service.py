@@ -16,7 +16,7 @@ from memory.collections import (
     EMOTIONAL_MEMORY,
     USER_MEMORY,
 )
-from memory.memory_retriever import search_memory
+from memory.memory_retriever import DEFAULT_ALPHA, search_memory
 from memory.memory_writer import store_memory
 
 logger = logging.getLogger("agent_core")
@@ -62,11 +62,15 @@ def get_relevant_memories(
     agent_id: str,
     top_k: int = 5,
     collections: Optional[List[str]] = None,
+    hybrid: bool = True,
+    alpha: float = DEFAULT_ALPHA,
 ) -> Dict[str, List[Dict[str, Any]]]:
     """Retrieve the most relevant memories for ``query``.
 
     Searches each requested collection (all four by default) scoped to the given
-    user and agent. Returns a dict keyed by collection name.
+    user and agent, using hybrid dense + lexical (BM25) re-ranking. Returns a
+    dict keyed by collection name; each memory carries a normalized ``relevance``
+    score in ``[0, 1]`` for a downstream grader to consume.
     """
     target_collections = collections or [
         USER_MEMORY,
@@ -83,6 +87,8 @@ def get_relevant_memories(
             user_id=user_id,
             agent_id=agent_id,
             top_k=top_k,
+            hybrid=hybrid,
+            alpha=alpha,
         )
 
     total = sum(len(hits) for hits in results.values())
