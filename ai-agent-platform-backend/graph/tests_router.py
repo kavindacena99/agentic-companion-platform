@@ -69,7 +69,7 @@ class _GraphHarness(unittest.TestCase):
     def setUp(self):
         self._saved = {
             "llm_node": wf.llm_node,
-            "memory_retriever_node": wf.memory_retriever_node,
+            "get_relevant_memories": wf.get_relevant_memories,
             "AgentLoaderService": wf.AgentLoaderService,
             "process_writeback": wf.process_writeback,
         }
@@ -79,11 +79,11 @@ class _GraphHarness(unittest.TestCase):
             self.visits["llm"] += 1
             return {"response": "LLM_REPLY", "context": dict(state.get("context") or {})}
 
-        real_memory = self._saved["memory_retriever_node"]
-
-        def spy_memory(state):
+        def spy_memory(query, user_id, agent_id, top_k=5):
+            # Return a strong hit so the grader is satisfied on the first pass
+            # (the retrieval loop itself is exercised in tests_retrieval_loop).
             self.visits["memory"] += 1
-            return real_memory(state)
+            return {"user_memory": [{"content": "fact", "relevance": 0.9}]}
 
         class _StubProfile:
             def to_dict(self):
@@ -94,7 +94,7 @@ class _GraphHarness(unittest.TestCase):
                 return _StubProfile()
 
         wf.llm_node = spy_llm
-        wf.memory_retriever_node = spy_memory
+        wf.get_relevant_memories = spy_memory
         wf.AgentLoaderService = _StubLoader
         wf.process_writeback = lambda **kwargs: []
         self.graph = wf.build_workflow()
