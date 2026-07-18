@@ -69,3 +69,50 @@ def store_memory(
         record_metadata["memory_type"],
     )
     return record_id
+
+
+def get_memory(collection_name: str, record_id: str) -> Optional[Dict[str, Any]]:
+    """Return ``{id, content, metadata}`` for a stored record, or ``None``."""
+    collection = get_collection(collection_name)
+    got = collection.get(ids=[record_id])
+    ids = got.get("ids") or []
+    if not ids:
+        return None
+    documents = got.get("documents") or []
+    metadatas = got.get("metadatas") or []
+    return {
+        "id": ids[0],
+        "content": documents[0] if documents else None,
+        "metadata": metadatas[0] if metadatas else {},
+    }
+
+
+def update_memory(
+    collection_name: str,
+    record_id: str,
+    content: str,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Replace a record's ``content`` (re-embedding it) in place.
+
+    Used by agentic writeback to resolve a changed fact without creating a
+    duplicate. The existing ``user_id`` / ``agent_id`` scoping is read back and
+    preserved; supplied ``metadata`` is merged, the original ``timestamp`` is
+    kept, and an ``updated_at`` timestamp is stamped for recency handling.
+    """
+    collection = get_collection(collection_name)
+    existing = get_memory(collection_name, record_id)
+    record_metadata: Dict[str, Any] = dict((existing or {}).get("metadata") or {})
+    record_metadata.update(metadata or {})
+    record_metadata["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+    embedding = generate_embedding(content)
+    collection.update(
+        ids=[record_id],
+        embeddings=[embedding],
+        documents=[content],
+        metadatas=[_sanitize_metadata(record_metadata)],
+    )
+    logger.debug("Updated memory %s in %s (user=%s agent=%s)", record_id, collection_name,
+                 record_metadata.get("user_id"), record_metadata.get("agent_id"))
+    return record_id
