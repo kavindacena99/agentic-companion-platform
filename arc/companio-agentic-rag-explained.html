@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Companio Agentic RAG Architecture Explained</title>
+<style>
+  :root{
+    --bg:#f7f9fc;
+    --surface:#ffffff;
+    --surface-2:#eef3fb;
+    --surface-3:#f8fbff;
+    --ink:#172033;
+    --muted:#5d687b;
+    --line:#dce5f1;
+    --brand:#2563eb;
+    --brand-soft:#eaf2ff;
+    --green:#15803d;
+    --green-soft:#eaf8ef;
+    --amber:#b45309;
+    --amber-soft:#fff4e5;
+    --red:#b91c1c;
+    --red-soft:#fdecec;
+    --teal:#0f766e;
+    --teal-soft:#e8fbf8;
+    --purple:#7c3aed;
+    --purple-soft:#f4ecff;
+    --shadow:0 1px 2px rgba(15,23,42,.05),0 10px 30px rgba(15,23,42,.07);
+    --radius:16px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font:16px/1.65 "Segoe UI",Arial,Helvetica,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1140px;margin:0 auto;padding:0 24px 92px}
+  header{
+    background:linear-gradient(135deg,#ffffff 0%,#edf4ff 55%,#f7f9fc 100%);
+    border-bottom:1px solid var(--line);
+    padding:58px 0 42px;
+  }
+  .eyebrow{
+    display:inline-block;
+    padding:6px 12px;
+    border-radius:999px;
+    background:var(--brand-soft);
+    color:var(--brand);
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+  }
+  h1{
+    margin:18px 0 12px;
+    font-size:42px;
+    line-height:1.1;
+    letter-spacing:-.03em;
+  }
+  .lede{
+    max-width:80ch;
+    margin:0;
+    font-size:18px;
+    color:var(--muted);
+  }
+  .meta{
+    margin-top:18px;
+    color:var(--muted);
+    font-size:13px;
+  }
+  section{margin:54px 0}
+  h2{
+    margin:0 0 8px;
+    font-size:29px;
+    letter-spacing:-.02em;
+  }
+  h3{
+    margin:26px 0 8px;
+    font-size:20px;
+  }
+  h4{
+    margin:18px 0 6px;
+    font-size:16px;
+  }
+  p{margin:12px 0}
+  ul,ol{margin:12px 0 12px 22px}
+  li{margin:6px 0}
+  a{color:var(--brand);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{
+    background:var(--surface-2);
+    color:#29406d;
+    padding:2px 6px;
+    border-radius:6px;
+    font-family:Consolas,Monaco,monospace;
+    font-size:.88em;
+  }
+  pre{
+    background:#0f172a;
+    color:#e2e8f0;
+    border-radius:14px;
+    padding:16px 18px;
+    overflow:auto;
+    font-size:13px;
+    line-height:1.6;
+  }
+  .toc,.card,.diagram,.banner{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+  }
+  .toc{padding:18px 22px;margin:28px 0 36px}
+  .toc h4{
+    margin:0 0 10px;
+    font-size:12px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--muted);
+  }
+  .toc ol{
+    margin:0;
+    padding-left:20px;
+    columns:2;
+    column-gap:36px;
+  }
+  .toc li{margin:4px 0}
+  .card{padding:22px 24px;margin:18px 0}
+  .diagram{padding:20px 16px;margin:20px 0;overflow:auto}
+  .banner{padding:18px 20px;background:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%)}
+  .sub{
+    margin:0 0 20px;
+    color:var(--muted);
+    font-size:15px;
+  }
+  .grid-2{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:16px;
+  }
+  .grid-3{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:16px;
+  }
+  @media(max-width:900px){
+    .grid-3{grid-template-columns:1fr}
+  }
+  @media(max-width:760px){
+    .toc ol{columns:1}
+    .grid-2{grid-template-columns:1fr}
+  }
+  .pillrow{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+  .pill{
+    display:inline-block;
+    padding:5px 11px;
+    border-radius:999px;
+    border:1px solid var(--line);
+    background:var(--surface-2);
+    color:#334155;
+    font-size:12.5px;
+    font-weight:600;
+  }
+  .note{
+    margin:18px 0;
+    padding:14px 18px;
+    border-left:4px solid var(--brand);
+    border-radius:0 12px 12px 0;
+    background:var(--brand-soft);
+  }
+  .note.good{border-color:var(--green);background:var(--green-soft)}
+  .note.warn{border-color:var(--amber);background:var(--amber-soft)}
+  .note.danger{border-color:var(--red);background:var(--red-soft)}
+  .note strong{display:block;margin-bottom:4px}
+  .caption{
+    margin:10px 0 0;
+    font-size:13px;
+    color:var(--muted);
+    text-align:center;
+  }
+  .bordered{
+    border:1px solid var(--line);
+    border-radius:14px;
+    overflow:hidden;
+  }
+  table{
+    width:100%;
+    border-collapse:collapse;
+    margin:18px 0;
+    font-size:14.5px;
+  }
+  th,td{
+    text-align:left;
+    vertical-align:top;
+    padding:12px 14px;
+    border-bottom:1px solid var(--line);
+  }
+  th{
+    background:var(--surface-2);
+    color:var(--muted);
+    font-size:12px;
+    letter-spacing:.07em;
+    text-transform:uppercase;
+  }
+  tr:last-child td{border-bottom:none}
+  .steps{
+    counter-reset:step;
+    list-style:none;
+    padding:0;
+    margin:16px 0;
+  }
+  .steps li{
+    position:relative;
+    margin:0 0 18px;
+    padding-left:44px;
+  }
+  .steps li::before{
+    counter-increment:step;
+    content:counter(step);
+    position:absolute;
+    left:0;
+    top:0;
+    width:30px;
+    height:30px;
+    border-radius:50%;
+    background:var(--brand-soft);
+    color:var(--brand);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-weight:700;
+  }
+  .route-card{
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:18px;
+    background:var(--surface);
+  }
+  .route-card h4{margin-top:0}
+  footer{
+    margin-top:64px;
+    padding-top:24px;
+    border-top:1px solid var(--line);
+    color:var(--muted);
+    font-size:13px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <span class="eyebrow">Companio - Verified Architecture Walkthrough</span>
+    <h1>Full understanding of the AI Agent Platform as an Agentic RAG system</h1>
+    <p class="lede">This document explains the actual AI agent platform in this repository, not a generic RAG design. It shows how the platform is developed as Agentic RAG, how the LangGraph workflow operates, how memory is stored and retrieved, how the response is created, how safety is enforced, and what part of the product is already wired into the normal chat path.</p>
+    <p class="meta">Reference style: <code>C:\Users\Kavinda\Desktop\companio\agent-core-agentic-rag-blueprint.html</code>. Content source: code in <code>react-frontend</code>, <code>companio-main-backend</code>, and <code>ai-agent-platform-backend</code>, checked on 2026-07-18.</p>
+  </div>
+</header>
+
+<div class="wrap">
+  <nav class="toc">
+    <h4>Contents</h4>
+    <ol>
+      <li><a href="#answer">Direct answer</a></li>
+      <li><a href="#build-approach">How it is built as Agentic RAG</a></li>
+      <li><a href="#topology">System topology</a></li>
+      <li><a href="#main-graph">Main LangGraph workflow</a></li>
+      <li><a href="#routes">The four routes</a></li>
+      <li><a href="#retrieval-loop">Corrective retrieval loop</a></li>
+      <li><a href="#tool-loop">Tool loop and reflection loop</a></li>
+      <li><a href="#memory">How memory works</a></li>
+      <li><a href="#response">How the response is created</a></li>
+      <li><a href="#state">Agent state and observability</a></li>
+      <li><a href="#status">Current integration status</a></li>
+      <li><a href="#files">Important files</a></li>
+    </ol>
+  </nav>
+
+  <section id="answer">
+    <h2>1. Direct answer</h2>
+    <p class="sub">What this project is, in one clear statement.</p>
+
+    <div class="banner">
+      <p><strong>Yes, the AI backend of this project is developed as an Agentic RAG architecture.</strong> It is not just a chatbot with memory. It is a graph-based agent system that can classify the message, choose a route, decide whether retrieval is needed, reformulate the search query when retrieval is weak, call tools when action is required, reflect on its own draft, pass the result through a deterministic safety gate, and finally learn from the exchange by writing back into memory.</p>
+    </div>
+
+    <div class="grid-3">
+      <div class="card">
+        <h3>RAG part</h3>
+        <p>The system retrieves relevant memories before generating a reply. Those memories include user facts, conversation summaries, emotional history, and persona behavior memory.</p>
+      </div>
+      <div class="card">
+        <h3>Agentic part</h3>
+        <p>The system is not locked into one linear retrieval path. It has route decisions, loops, tool use, reflection, and bounded retries.</p>
+      </div>
+      <div class="card">
+        <h3>Companion part</h3>
+        <p>The system is tailored for AI companion behavior: persona rules, emotional understanding, continuity over time, and strong safety boundaries against dependency and manipulation.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="build-approach">
+    <h2>2. How it is built as Agentic RAG</h2>
+    <p class="sub">The architecture is created by combining six design decisions inside <code>ai-agent-platform-backend</code>.</p>
+
+    <div class="bordered">
+      <table>
+        <tr>
+          <th>Design decision</th>
+          <th>What it does</th>
+          <th>Why it makes the system agentic</th>
+        </tr>
+        <tr>
+          <td><strong>LangGraph workflow</strong></td>
+          <td>Organizes the runtime as nodes and conditional edges instead of one request handler.</td>
+          <td>The system can branch and loop instead of always executing one fixed pipeline.</td>
+        </tr>
+        <tr>
+          <td><strong>Route selector</strong></td>
+          <td>Picks one of four runtime paths: <code>crisis</code>, <code>direct</code>, <code>retrieve</code>, or <code>tool</code>.</td>
+          <td>The agent first decides what kind of reasoning is needed.</td>
+        </tr>
+        <tr>
+          <td><strong>Corrective retrieval</strong></td>
+          <td>Plans the search query, retrieves memories, grades relevance, and reformulates when needed.</td>
+          <td>The agent evaluates retrieval quality and corrects itself instead of trusting the first search.</td>
+        </tr>
+        <tr>
+          <td><strong>Tool loop</strong></td>
+          <td>Lets the model request tools, observe tool results, and continue reasoning.</td>
+          <td>The system can act, not only generate text.</td>
+        </tr>
+        <tr>
+          <td><strong>Reflection loop</strong></td>
+          <td>Runs a critic pass on the draft to judge grounding, persona fit, and emotional alignment.</td>
+          <td>The agent can judge its own output before final delivery.</td>
+        </tr>
+        <tr>
+          <td><strong>Write-back memory learning</strong></td>
+          <td>After replying, the system extracts durable facts, deduplicates them, and updates exact facts in place.</td>
+          <td>The agent improves future responses from prior turns.</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="note good">
+      <strong>Simple mental model</strong>
+      A normal RAG app is usually "retrieve once, generate once". This project is "understand, choose path, retrieve if needed, fix retrieval if weak, use tools if needed, generate, critique, safety-check, learn".
+    </div>
+  </section>
+
+  <section id="topology">
+    <h2>3. System topology</h2>
+    <p class="sub">There are three main apps in the repository, but the actual Agentic RAG engine lives in the AI backend.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 1040 430" width="100%" style="height:auto;max-width:1040px;display:block;margin:0 auto;font-family:'Segoe UI',Arial,sans-serif" role="img" aria-label="Companio system topology">
+        <defs>
+          <marker id="top-arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"></path>
+          </marker>
+        </defs>
+
+        <rect x="40" y="60" width="250" height="120" rx="16" fill="#ffffff" stroke="#dce5f1" stroke-width="1.5"></rect>
+        <text x="165" y="96" text-anchor="middle" font-size="21" font-weight="700" fill="#172033">react-frontend</text>
+        <text x="165" y="122" text-anchor="middle" font-size="13" fill="#5d687b">UI, login, selected agent,</text>
+        <text x="165" y="142" text-anchor="middle" font-size="13" fill="#5d687b">chat screen, usage, safety reports</text>
+
+        <rect x="395" y="45" width="260" height="150" rx="16" fill="#ffffff" stroke="#dce5f1" stroke-width="1.5"></rect>
+        <text x="525" y="80" text-anchor="middle" font-size="21" font-weight="700" fill="#172033">companio-main-backend</text>
+        <text x="525" y="108" text-anchor="middle" font-size="13" fill="#5d687b">JWT auth, sessions, usage limits,</text>
+        <text x="525" y="128" text-anchor="middle" font-size="13" fill="#5d687b">agent catalog, profiles, reports</text>
+        <text x="525" y="158" text-anchor="middle" font-size="12.5" fill="#2563eb" font-weight="700">Normal product chat enters here</text>
+
+        <rect x="750" y="45" width="250" height="150" rx="16" fill="#ffffff" stroke="#dce5f1" stroke-width="1.5"></rect>
+        <text x="875" y="80" text-anchor="middle" font-size="20" font-weight="700" fill="#172033">ai-agent-platform-backend</text>
+        <text x="875" y="108" text-anchor="middle" font-size="13" fill="#5d687b">LangGraph, memory, LLM router,</text>
+        <text x="875" y="128" text-anchor="middle" font-size="13" fill="#5d687b">tools, reflection, safety, write-back</text>
+        <text x="875" y="158" text-anchor="middle" font-size="12.5" fill="#15803d" font-weight="700">This is the Agentic RAG runtime</text>
+
+        <rect x="395" y="255" width="260" height="110" rx="16" fill="#ffffff" stroke="#dce5f1" stroke-width="1.5"></rect>
+        <text x="525" y="288" text-anchor="middle" font-size="18" font-weight="700" fill="#172033">Legacy agent gateway path</text>
+        <text x="525" y="314" text-anchor="middle" font-size="13" fill="#5d687b">Default chat flow used by</text>
+        <text x="525" y="334" text-anchor="middle" font-size="13" fill="#5d687b">main backend chat services</text>
+        <text x="525" y="354" text-anchor="middle" font-size="12.5" fill="#b45309" font-weight="700">May return mock responses when enabled</text>
+
+        <line x1="290" y1="120" x2="393" y2="120" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#top-arrow)"></line>
+        <text x="342" y="108" text-anchor="middle" font-size="12" fill="#5d687b">REST API</text>
+
+        <line x1="655" y1="120" x2="748" y2="120" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#top-arrow)"></line>
+        <text x="702" y="108" text-anchor="middle" font-size="12" fill="#5d687b">Testing gateway</text>
+
+        <line x1="525" y1="196" x2="525" y2="253" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#top-arrow)"></line>
+        <text x="578" y="225" font-size="12" fill="#5d687b">Default UI chat path</text>
+
+        <path d="M750 175 C695 248, 665 255, 655 255" fill="none" stroke="#0f766e" stroke-width="2.5" marker-end="url(#top-arrow)"></path>
+        <text x="764" y="214" font-size="12" fill="#0f766e">Agent config and profile lookups</text>
+      </svg>
+      <p class="caption">Diagram 1. The AI backend is the real reasoning engine, while the main backend is the product shell and gateway.</p>
+    </div>
+
+    <div class="note warn">
+      <strong>Important architecture truth</strong>
+      The Agentic RAG engine is implemented in the AI backend, but the normal frontend chat path is not fully routed through it yet. The frontend sends messages to the main backend. The main backend's standard chat flow still goes through its legacy agent gateway, while the full agent-core workflow is reachable through the testing gateway <code>POST /api/v1/chat/</code> and directly through <code>/chat/</code> on the AI backend.
+    </div>
+  </section>
+
+  <section id="main-graph">
+    <h2>4. Main LangGraph workflow</h2>
+    <p class="sub">This is the actual runtime graph compiled in <code>ai-agent-platform-backend/graph/workflow.py</code>. The important thing is not only the nodes, but the decision points and loops.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 1040 1180" width="100%" style="height:auto;max-width:1040px;display:block;margin:0 auto;font-family:'Segoe UI',Arial,sans-serif" role="img" aria-label="Main LangGraph workflow">
+        <defs>
+          <marker id="main-arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"></path>
+          </marker>
+          <marker id="main-green" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0,0 L7,3 L0,6 Z" fill="#15803d"></path>
+          </marker>
+          <marker id="main-amber" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0,0 L7,3 L0,6 Z" fill="#b45309"></path>
+          </marker>
+          <marker id="main-red" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0,0 L7,3 L0,6 Z" fill="#b91c1c"></path>
+          </marker>
+          <marker id="main-teal" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0,0 L7,3 L0,6 Z" fill="#0f766e"></path>
+          </marker>
+        </defs>
+
+        <g font-size="12.5" font-weight="600">
+          <rect x="420" y="16" width="200" height="44" rx="12" fill="#eaf2ff" stroke="#2563eb"></rect>
+          <text x="520" y="44" text-anchor="middle" fill="#172033">START</text>
+
+          <rect x="420" y="86" width="200" height="46" rx="12" fill="#ffffff" stroke="#dce5f1"></rect>
+          <text x="520" y="114" text-anchor="middle" fill="#172033">input</text>
+
+          <rect x="420" y="158" width="200" height="46" rx="12" fill="#ffffff" stroke="#dce5f1"></rect>
+          <text x="520" y="186" text-anchor="middle" fill="#172033">intent</text>
+
+          <rect x="420" y="230" width="200" height="46" rx="12" fill="#ffffff" stroke="#dce5f1"></rect>
+          <text x="520" y="258" text-anchor="middle" fill="#172033">emotion</text>
+
+          <rect x="420" y="302" width="200" height="54" rx="12" fill="#eaf8ef" stroke="#15803d" stroke-width="1.5"></rect>
+          <text x="520" y="329" text-anchor="middle" fill="#172033">router</text>
+          <text x="520" y="347" text-anchor="middle" fill="#5d687b" font-size="10.5">choose crisis, direct, retrieve, or tool</text>
+
+          <rect x="70" y="392" width="230" height="54" rx="12" fill="#fdecec" stroke="#b91c1c" stroke-width="1.5"></rect>
+          <text x="185" y="419" text-anchor="middle" fill="#172033">crisis_response</text>
+          <text x="185" y="437" text-anchor="middle" fill="#5d687b" font-size="10.5">deterministic support message</text>
+
+          <rect x="420" y="392" width="200" height="46" rx="12" fill="#ffffff" stroke="#dce5f1"></rect>
+          <text x="520" y="420" text-anchor="middle" fill="#172033">agent_loader</text>
+
+          <rect x="420" y="468" width="200" height="46" rx="12" fill="#eaf8ef" stroke="#15803d" stroke-width="1.5"></rect>
+          <text x="520" y="496" text-anchor="middle" fill="#172033">plan_query</text>
+
+          <rect x="420" y="544" width="200" height="46" rx="12" fill="#eaf8ef" stroke="#15803d" stroke-width="1.5"></rect>
+          <text x="520" y="572" text-anchor="middle" fill="#172033">retrieve</text>
+
+          <rect x="420" y="620" width="200" height="46" rx="12" fill="#eaf8ef" stroke="#15803d" stroke-width="1.5"></rect>
+          <text x="520" y="648" text-anchor="middle" fill="#172033">grade</text>
+
+          <rect x="760" y="620" width="210" height="46" rx="12" fill="#fff4e5" stroke="#b45309" stroke-width="1.5"></rect>
+          <text x="865" y="648" text-anchor="middle" fill="#172033">reformulate</text>
+
+          <rect x="420" y="720" width="200" height="46" rx="12" fill="#ffffff" stroke="#dce5f1"></rect>
+          <text x="520" y="748" text-anchor="middle" fill="#172033">context_builder</text>
+
+          <rect x="420" y="792" width="200" height="46" rx="12" fill="#ffffff" stroke="#dce5f1"></rect>
+          <text x="520" y="820" text-anchor="middle" fill="#172033">prompt_builder</text>
+
+          <rect x="160" y="884" width="180" height="54" rx="12" fill="#f4ecff" stroke="#7c3aed" stroke-width="1.5"></rect>
+          <text x="250" y="911" text-anchor="middle" fill="#172033">llm</text>
+          <text x="250" y="929" text-anchor="middle" fill="#5d687b" font-size="10.5">direct generation</text>
+
+          <rect x="430" y="884" width="180" height="54" rx="12" fill="#fff4e5" stroke="#b45309" stroke-width="1.5"></rect>
+          <text x="520" y="911" text-anchor="middle" fill="#172033">tool_agent</text>
+          <text x="520" y="929" text-anchor="middle" fill="#5d687b" font-size="10.5">use tool or answer</text>
+
+          <rect x="720" y="884" width="180" height="54" rx="12" fill="#fff4e5" stroke="#b45309" stroke-width="1.5"></rect>
+          <text x="810" y="911" text-anchor="middle" fill="#172033">tool_executor</text>
+          <text x="810" y="929" text-anchor="middle" fill="#5d687b" font-size="10.5">run requested tools</text>
+
+          <rect x="420" y="980" width="200" height="46" rx="12" fill="#e8fbf8" stroke="#0f766e" stroke-width="1.5"></rect>
+          <text x="520" y="1008" text-anchor="middle" fill="#172033">reflect</text>
+
+          <rect x="420" y="1052" width="200" height="46" rx="12" fill="#fdecec" stroke="#b91c1c" stroke-width="1.5"></rect>
+          <text x="520" y="1080" text-anchor="middle" fill="#172033">safety</text>
+
+          <rect x="720" y="1052" width="200" height="46" rx="12" fill="#ffffff" stroke="#dce5f1"></rect>
+          <text x="820" y="1080" text-anchor="middle" fill="#172033">response_finalizer</text>
+
+          <rect x="720" y="1124" width="200" height="46" rx="12" fill="#eaf8ef" stroke="#15803d" stroke-width="1.5"></rect>
+          <text x="820" y="1152" text-anchor="middle" fill="#172033">writeback</text>
+
+          <rect x="90" y="1052" width="180" height="46" rx="12" fill="#ffffff" stroke="#dce5f1"></rect>
+          <text x="180" y="1080" text-anchor="middle" fill="#172033">END</text>
+        </g>
+
+        <g stroke="#94a3b8" stroke-width="2.2" marker-end="url(#main-arrow)">
+          <line x1="520" y1="60" x2="520" y2="86"></line>
+          <line x1="520" y1="132" x2="520" y2="158"></line>
+          <line x1="520" y1="204" x2="520" y2="230"></line>
+          <line x1="520" y1="276" x2="520" y2="302"></line>
+          <line x1="520" y1="438" x2="520" y2="468"></line>
+          <line x1="520" y1="514" x2="520" y2="544"></line>
+          <line x1="520" y1="590" x2="520" y2="620"></line>
+          <line x1="520" y1="766" x2="520" y2="792"></line>
+          <line x1="250" y1="938" x2="250" y2="1003"></line>
+          <line x1="250" y1="1003" x2="420" y2="1003"></line>
+          <line x1="520" y1="1026" x2="520" y2="1052"></line>
+          <line x1="820" y1="1098" x2="820" y2="1124"></line>
+        </g>
+
+        <path d="M420 329 C320 329, 250 356, 185 392" fill="none" stroke="#b91c1c" stroke-width="2.5" marker-end="url(#main-red)"></path>
+        <text x="277" y="342" font-size="12" fill="#b91c1c">crisis branch</text>
+
+        <path d="M520 356 L520 392" fill="none" stroke="#15803d" stroke-width="2.5" marker-end="url(#main-green)"></path>
+        <text x="532" y="378" font-size="12" fill="#15803d">all normal routes</text>
+
+        <path d="M300 419 C360 419, 380 530, 420 1052" fill="none" stroke="#b91c1c" stroke-width="2.5" marker-end="url(#main-red)"></path>
+        <text x="260" y="560" font-size="12" fill="#b91c1c">crisis goes straight to safety</text>
+
+        <path d="M620 415 C700 415, 760 440, 760 468" fill="none" stroke="#15803d" stroke-width="2.5"></path>
+        <path d="M760 468 C760 500, 690 490, 620 490" fill="none" stroke="#15803d" stroke-width="2.5" marker-end="url(#main-green)"></path>
+        <text x="732" y="450" font-size="12" fill="#15803d">retrieve/tool routes</text>
+
+        <path d="M620 415 C690 415, 720 720, 620 720" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#main-arrow)"></path>
+        <text x="696" y="590" font-size="12" fill="#2563eb">direct route skips retrieval</text>
+
+        <path d="M620 643 C700 643, 730 643, 760 643" fill="none" stroke="#b45309" stroke-width="2.5" marker-end="url(#main-amber)"></path>
+        <text x="671" y="631" font-size="12" fill="#b45309">insufficient</text>
+
+        <path d="M865 666 C865 714, 700 745, 620 567" fill="none" stroke="#b45309" stroke-width="2.5" marker-end="url(#main-amber)"></path>
+        <text x="768" y="713" font-size="12" fill="#b45309">retry retrieval</text>
+
+        <path d="M520 666 L520 720" fill="none" stroke="#15803d" stroke-width="2.5" marker-end="url(#main-green)"></path>
+        <text x="534" y="694" font-size="12" fill="#15803d">sufficient or max retries</text>
+
+        <path d="M420 818 C350 818, 300 852, 250 884" fill="none" stroke="#7c3aed" stroke-width="2.5" marker-end="url(#main-arrow)"></path>
+        <text x="286" y="832" font-size="12" fill="#7c3aed">direct/retrieve generation</text>
+
+        <path d="M620 818 C690 818, 730 852, 520 884" fill="none" stroke="#b45309" stroke-width="2.5" marker-end="url(#main-amber)"></path>
+        <text x="686" y="832" font-size="12" fill="#b45309">tool route</text>
+
+        <path d="M610 911 C665 911, 690 911, 720 911" fill="none" stroke="#b45309" stroke-width="2.5" marker-end="url(#main-amber)"></path>
+        <text x="655" y="898" font-size="12" fill="#b45309">tool_calls</text>
+
+        <path d="M810 938 C810 970, 665 970, 610 920" fill="none" stroke="#b45309" stroke-width="2.5" marker-end="url(#main-amber)"></path>
+        <text x="720" y="960" font-size="12" fill="#b45309">observation loop</text>
+
+        <path d="M520 938 L520 980" fill="none" stroke="#15803d" stroke-width="2.5" marker-end="url(#main-green)"></path>
+        <text x="535" y="958" font-size="12" fill="#15803d">final draft</text>
+
+        <path d="M520 1026 C520 1040, 370 1040, 370 860 C370 780, 470 780, 470 792" fill="none" stroke="#0f766e" stroke-width="2.5" marker-end="url(#main-teal)"></path>
+        <text x="260" y="904" font-size="12" fill="#0f766e">revise sends the workflow back to retrieval and generation</text>
+
+        <path d="M620 1075 C670 1075, 700 1075, 720 1075" fill="none" stroke="#15803d" stroke-width="2.5" marker-end="url(#main-green)"></path>
+        <text x="663" y="1062" font-size="12" fill="#15803d">normal turns continue</text>
+
+        <path d="M620 1075 C650 1075, 640 1080, 270 1080" fill="none" stroke="#b91c1c" stroke-width="2.5" marker-end="url(#main-red)"></path>
+        <text x="335" y="1113" font-size="12" fill="#b91c1c">crisis ends after safety, without finalizer or writeback</text>
+      </svg>
+      <p class="caption">Diagram 2. This is the full reasoning graph. The most important idea is that three separate loops exist inside one workflow: retrieval correction, tool use, and reflection.</p>
+    </div>
+
+    <div class="card">
+      <h3>What the graph is doing conceptually</h3>
+      <p>The workflow first understands the message, then decides which route to take. If the turn is casual and simple, it can skip retrieval. If the turn needs memory grounding, it enters the retrieval loop. If the turn needs action or external data, it enters the tool loop. After drafting a response, it runs through reflection, then safety, then optional finalization and memory write-back.</p>
+    </div>
+  </section>
+
+  <section id="routes">
+    <h2>5. The four routes</h2>
+    <p class="sub">The router is the first major agentic decision. It decides what kind of turn the system is handling.</p>
+
+    <div class="grid-2">
+      <div class="route-card">
+        <h4>Route 1: direct</h4>
+        <p><strong>When it is used:</strong> casual small-talk or messages that do not need memory or tools.</p>
+        <p><strong>Path:</strong> <code>input -> intent -> emotion -> router -> agent_loader -> context_builder -> prompt_builder -> llm -> reflect -> safety -> response_finalizer -> writeback</code></p>
+        <p><strong>Why it exists:</strong> not every message should pay the retrieval cost.</p>
+      </div>
+
+      <div class="route-card">
+        <h4>Route 2: retrieve</h4>
+        <p><strong>When it is used:</strong> questions and emotional turns that benefit from user memory or conversation continuity.</p>
+        <p><strong>Path:</strong> same as direct, but with the corrective retrieval loop inserted before context building.</p>
+        <p><strong>Why it exists:</strong> this is the main memory-grounded conversational path.</p>
+      </div>
+
+      <div class="route-card">
+        <h4>Route 3: tool</h4>
+        <p><strong>When it is used:</strong> reminders, activity suggestions, web lookups, or profile-dependent actions.</p>
+        <p><strong>Path:</strong> retrieve first, then go from <code>prompt_builder</code> into <code>tool_agent</code> and <code>tool_executor</code>.</p>
+        <p><strong>Why it exists:</strong> some requests require doing something, not just talking about it.</p>
+      </div>
+
+      <div class="route-card">
+        <h4>Route 4: crisis</h4>
+        <p><strong>When it is used:</strong> self-harm or suicide-risk language.</p>
+        <p><strong>Path:</strong> <code>input -> intent -> emotion -> router -> crisis_response -> safety -> end</code></p>
+        <p><strong>Why it exists:</strong> crisis handling should not depend on normal generation, retrieval, or persona improvisation.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="retrieval-loop">
+    <h2>6. Corrective retrieval loop</h2>
+    <p class="sub">This is the strongest RAG-specific part of the architecture. Retrieval is not done once and blindly trusted.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 980 420" width="100%" style="height:auto;max-width:980px;display:block;margin:0 auto;font-family:'Segoe UI',Arial,sans-serif" role="img" aria-label="Corrective retrieval loop">
+        <defs>
+          <marker id="ret-arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"></path>
+          </marker>
+          <marker id="ret-green" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0,0 L7,3 L0,6 Z" fill="#15803d"></path>
+          </marker>
+          <marker id="ret-amber" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0,0 L7,3 L0,6 Z" fill="#b45309"></path>
+          </marker>
+        </defs>
+
+        <rect x="40" y="156" width="180" height="86" rx="14" fill="#ffffff" stroke="#dce5f1"></rect>
+        <text x="130" y="190" text-anchor="middle" font-size="18" font-weight="700" fill="#172033">plan_query</text>
+        <text x="130" y="215" text-anchor="middle" font-size="13" fill="#5d687b">remove filler and turn the</text>
+        <text x="130" y="235" text-anchor="middle" font-size="13" fill="#5d687b">message into a search query</text>
+
+        <rect x="300" y="156" width="180" height="86" rx="14" fill="#ffffff" stroke="#dce5f1"></rect>
+        <text x="390" y="190" text-anchor="middle" font-size="18" font-weight="700" fill="#172033">retrieve</text>
+        <text x="390" y="215" text-anchor="middle" font-size="13" fill="#5d687b">hybrid search across</text>
+        <text x="390" y="235" text-anchor="middle" font-size="13" fill="#5d687b">four scoped memory stores</text>
+
+        <rect x="560" y="156" width="180" height="86" rx="14" fill="#ffffff" stroke="#dce5f1"></rect>
+        <text x="650" y="190" text-anchor="middle" font-size="18" font-weight="700" fill="#172033">grade</text>
+        <text x="650" y="215" text-anchor="middle" font-size="13" fill="#5d687b">judge whether the hits are</text>
+        <text x="650" y="235" text-anchor="middle" font-size="13" fill="#5d687b">good enough to ground the reply</text>
+
+        <rect x="760" y="60" width="180" height="86" rx="14" fill="#fff4e5" stroke="#b45309" stroke-width="1.5"></rect>
+        <text x="850" y="94" text-anchor="middle" font-size="18" font-weight="700" fill="#172033">reformulate</text>
+        <text x="850" y="119" text-anchor="middle" font-size="13" fill="#5d687b">broaden the query or add</text>
+        <text x="850" y="139" text-anchor="middle" font-size="13" fill="#5d687b">emotion/intent hints</text>
+
+        <rect x="760" y="262" width="180" height="86" rx="14" fill="#eaf8ef" stroke="#15803d" stroke-width="1.5"></rect>
+        <text x="850" y="296" text-anchor="middle" font-size="18" font-weight="700" fill="#172033">context_builder</text>
+        <text x="850" y="321" text-anchor="middle" font-size="13" fill="#5d687b">use the best available</text>
+        <text x="850" y="341" text-anchor="middle" font-size="13" fill="#5d687b">retrieval result</text>
+
+        <line x1="220" y1="199" x2="298" y2="199" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#ret-arrow)"></line>
+        <line x1="480" y1="199" x2="558" y2="199" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#ret-arrow)"></line>
+        <path d="M740 182 C770 182, 800 160, 820 146" fill="none" stroke="#b45309" stroke-width="2.5" marker-end="url(#ret-amber)"></path>
+        <text x="772" y="168" font-size="12" fill="#b45309">insufficient</text>
+        <path d="M850 146 C850 178, 760 190, 480 198" fill="none" stroke="#b45309" stroke-width="2.5" marker-end="url(#ret-amber)"></path>
+        <text x="845" y="176" font-size="12" fill="#b45309">try again</text>
+        <path d="M740 216 C770 240, 800 260, 820 262" fill="none" stroke="#15803d" stroke-width="2.5" marker-end="url(#ret-green)"></path>
+        <text x="775" y="247" font-size="12" fill="#15803d">sufficient or max loop</text>
+      </svg>
+      <p class="caption">Diagram 3. Retrieval is a closed loop, not a single call. The workflow can search again with a better query.</p>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3>How the search query is planned</h3>
+        <p><code>plan_query()</code> strips filler words and keeps salient keywords. If the message is too short, it falls back to the original text so the query is never empty.</p>
+        <p>When a retry is needed, <code>reformulate_query()</code> broadens progressively. First it tries the full original message, then it enriches the query with intent and emotion hints.</p>
+      </div>
+      <div class="card">
+        <h3>How relevance is judged</h3>
+        <p>The retriever assigns each hit a normalized <code>relevance</code> score in the range <code>0.0</code> to <code>1.0</code>. The grade is <code>sufficient</code> when at least one hit clears the relevance threshold. Otherwise it is <code>insufficient</code> and the loop can continue.</p>
+      </div>
+    </div>
+
+    <div class="note good">
+      <strong>Why this matters</strong>
+      This is exactly where the architecture stops being naive RAG. Instead of assuming the first retrieval is correct, the system reasons about retrieval quality.
+    </div>
+  </section>
+
+  <section id="tool-loop">
+    <h2>7. Tool loop and reflection loop</h2>
+    <p class="sub">After memory grounding, the system still has two more agentic behaviors: acting through tools and judging its own answer.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 1000 460" width="100%" style="height:auto;max-width:1000px;display:block;margin:0 auto;font-family:'Segoe UI',Arial,sans-serif" role="img" aria-label="Tool loop and reflection loop">
+        <defs>
+          <marker id="tool-arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"></path>
+          </marker>
+          <marker id="tool-amber" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0,0 L7,3 L0,6 Z" fill="#b45309"></path>
+          </marker>
+          <marker id="tool-teal" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0,0 L7,3 L0,6 Z" fill="#0f766e"></path>
+          </marker>
+          <marker id="tool-red" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0,0 L7,3 L0,6 Z" fill="#b91c1c"></path>
+          </marker>
+        </defs>
+
+        <rect x="70" y="188" width="170" height="90" rx="14" fill="#ffffff" stroke="#dce5f1"></rect>
+        <text x="155" y="222" text-anchor="middle" font-size="18" font-weight="700" fill="#172033">prompt_builder</text>
+        <text x="155" y="247" text-anchor="middle" font-size="13" fill="#5d687b">final grounded prompt</text>
+
+        <rect x="320" y="188" width="170" height="90" rx="14" fill="#fff4e5" stroke="#b45309" stroke-width="1.5"></rect>
+        <text x="405" y="222" text-anchor="middle" font-size="18" font-weight="700" fill="#172033">tool_agent</text>
+        <text x="405" y="247" text-anchor="middle" font-size="13" fill="#5d687b">ask the model whether it</text>
+        <text x="405" y="267" text-anchor="middle" font-size="13" fill="#5d687b">needs a tool or can answer</text>
+
+        <rect x="560" y="70" width="170" height="90" rx="14" fill="#fff4e5" stroke="#b45309" stroke-width="1.5"></rect>
+        <text x="645" y="104" text-anchor="middle" font-size="18" font-weight="700" fill="#172033">tool_executor</text>
+        <text x="645" y="129" text-anchor="middle" font-size="13" fill="#5d687b">run tool calls and create</text>
+        <text x="645" y="149" text-anchor="middle" font-size="13" fill="#5d687b">tool observations</text>
+
+        <rect x="560" y="306" width="170" height="90" rx="14" fill="#e8fbf8" stroke="#0f766e" stroke-width="1.5"></rect>
+        <text x="645" y="340" text-anchor="middle" font-size="18" font-weight="700" fill="#172033">reflect</text>
+        <text x="645" y="365" text-anchor="middle" font-size="13" fill="#5d687b">accept or revise the draft</text>
+
+        <rect x="810" y="306" width="150" height="90" rx="14" fill="#fdecec" stroke="#b91c1c" stroke-width="1.5"></rect>
+        <text x="885" y="340" text-anchor="middle" font-size="18" font-weight="700" fill="#172033">safety</text>
+        <text x="885" y="365" text-anchor="middle" font-size="13" fill="#5d687b">rewrite if unsafe</text>
+
+        <line x1="240" y1="233" x2="318" y2="233" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#tool-arrow)"></line>
+        <path d="M490 210 C525 190, 545 165, 560 160" fill="none" stroke="#b45309" stroke-width="2.5" marker-end="url(#tool-amber)"></path>
+        <text x="515" y="188" font-size="12" fill="#b45309">tool calls</text>
+        <path d="M645 160 C645 197, 560 225, 490 235" fill="none" stroke="#b45309" stroke-width="2.5" marker-end="url(#tool-amber)"></path>
+        <text x="665" y="198" font-size="12" fill="#b45309">observations</text>
+        <path d="M490 250 C530 280, 550 306, 560 306" fill="none" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#tool-arrow)"></path>
+        <text x="520" y="289" font-size="12" fill="#5d687b">final draft</text>
+        <path d="M645 396 C645 424, 470 424, 470 278" fill="none" stroke="#0f766e" stroke-width="2.5" marker-end="url(#tool-teal)"></path>
+        <text x="490" y="412" font-size="12" fill="#0f766e">revise loops back to retrieval and generation</text>
+        <line x1="730" y1="351" x2="808" y2="351" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#tool-arrow)"></line>
+      </svg>
+      <p class="caption">Diagram 4. The workflow can act first, then answer, and it can critique its own draft before the final safety gate.</p>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3>Built-in tools</h3>
+        <ul>
+          <li><code>set_reminder</code> for reminder scheduling.</li>
+          <li><code>suggest_activity</code> for mood-aware suggestions.</li>
+          <li><code>fetch_user_profile</code> for profile data from the main backend.</li>
+          <li><code>search_web</code> for real-time facts, but only if configured.</li>
+        </ul>
+        <p>The tool registry exposes schemas to the LLM and ensures that even unknown or failing tools return safe observations instead of crashing the graph.</p>
+      </div>
+
+      <div class="card">
+        <h3>Reflection behavior</h3>
+        <p>The critic model checks three things: grounding in retrieved memories, persona consistency, and emotional responsiveness. If the draft is weak, the verdict becomes <code>revise</code> and the graph loops back to retrieval and generation.</p>
+        <p>This reflection layer is fail-open. If the critic is unavailable, the workflow still continues. Safety is the real final gate.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="memory">
+    <h2>8. How memory works</h2>
+    <p class="sub">Memory is implemented as a hybrid architecture: vector memory for fuzzy semantic recall and structured memory for exact facts.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 1040 500" width="100%" style="height:auto;max-width:1040px;display:block;margin:0 auto;font-family:'Segoe UI',Arial,sans-serif" role="img" aria-label="Memory architecture">
+        <defs>
+          <marker id="mem-arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"></path>
+          </marker>
+        </defs>
+
+        <rect x="40" y="200" width="190" height="96" rx="14" fill="#ffffff" stroke="#dce5f1"></rect>
+        <text x="135" y="236" text-anchor="middle" font-size="18" font-weight="700" fill="#172033">Conversation turn</text>
+        <text x="135" y="262" text-anchor="middle" font-size="13" fill="#5d687b">user message plus</text>
+        <text x="135" y="282" text-anchor="middle" font-size="13" fill="#5d687b">assistant response</text>
+
+        <rect x="305" y="56" width="200" height="96" rx="14" fill="#ffffff" stroke="#dce5f1"></rect>
+        <text x="405" y="92" text-anchor="middle" font-size="18" font-weight="700" fill="#172033">Fact extractor</text>
+        <text x="405" y="118" text-anchor="middle" font-size="13" fill="#5d687b">detect durable facts such as</text>
+        <text x="405" y="138" text-anchor="middle" font-size="13" fill="#5d687b">name, location, likes, emotion</text>
+
+        <rect x="305" y="196" width="200" height="96" rx="14" fill="#ffffff" stroke="#dce5f1"></rect>
+        <text x="405" y="232" text-anchor="middle" font-size="18" font-weight="700" fill="#172033">Summarizer</text>
+        <text x="405" y="258" text-anchor="middle" font-size="13" fill="#5d687b">create a short conversation</text>
+        <text x="405" y="278" text-anchor="middle" font-size="13" fill="#5d687b">summary for continuity</text>
+
+        <rect x="305" y="336" width="200" height="96" rx="14" fill="#ffffff" stroke="#dce5f1"></rect>
+        <text x="405" y="372" text-anchor="middle" font-size="18" font-weight="700" fill="#172033">Memory updater</text>
+        <text x="405" y="398" text-anchor="middle" font-size="13" fill="#5d687b">skip, insert, or update</text>
+        <text x="405" y="418" text-anchor="middle" font-size="13" fill="#5d687b">based on value and duplicates</text>
+
+        <rect x="590" y="26" width="190" height="86" rx="14" fill="#ffffff" stroke="#dce5f1"></rect>
+        <text x="685" y="58" text-anchor="middle" font-size="17" font-weight="700" fill="#172033">Canonical fact store</text>
+        <text x="685" y="82" text-anchor="middle" font-size="12.5" fill="#5d687b">SQLite exact facts</text>
+        <text x="685" y="100" text-anchor="middle" font-size="12.5" fill="#5d687b">name, location, occupation</text>
+
+        <rect x="590" y="138" width="190" height="86" rx="14" fill="#ffffff" stroke="#dce5f1"></rect>
+        <text x="685" y="170" text-anchor="middle" font-size="17" font-weight="700" fill="#172033">user_memory</text>
+        <text x="685" y="194" text-anchor="middle" font-size="12.5" fill="#5d687b">facts and preferences</text>
+
+        <rect x="590" y="250" width="190" height="86" rx="14" fill="#ffffff" stroke="#dce5f1"></rect>
+        <text x="685" y="282" text-anchor="middle" font-size="17" font-weight="700" fill="#172033">conversation_memory</text>
+        <text x="685" y="306" text-anchor="middle" font-size="12.5" fill="#5d687b">summaries of earlier turns</text>
+
+        <rect x="590" y="362" width="190" height="86" rx="14" fill="#ffffff" stroke="#dce5f1"></rect>
+        <text x="685" y="394" text-anchor="middle" font-size="17" font-weight="700" fill="#172033">emotional_memory</text>
+        <text x="685" y="418" text-anchor="middle" font-size="12.5" fill="#5d687b">mood and emotional patterns</text>
+
+        <rect x="840" y="194" width="170" height="96" rx="14" fill="#ffffff" stroke="#dce5f1"></rect>
+        <text x="925" y="230" text-anchor="middle" font-size="18" font-weight="700" fill="#172033">ChromaDB</text>
+        <text x="925" y="256" text-anchor="middle" font-size="13" fill="#5d687b">vector persistence</text>
+        <text x="925" y="276" text-anchor="middle" font-size="13" fill="#5d687b">hybrid search and reranking</text>
+
+        <line x1="230" y1="220" x2="303" y2="122" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#mem-arrow)"></line>
+        <line x1="230" y1="248" x2="303" y2="244" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#mem-arrow)"></line>
+        <line x1="230" y1="276" x2="303" y2="366" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#mem-arrow)"></line>
+
+        <line x1="505" y1="104" x2="588" y2="69" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#mem-arrow)"></line>
+        <line x1="505" y1="384" x2="588" y2="181" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#mem-arrow)"></line>
+        <line x1="505" y1="384" x2="588" y2="293" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#mem-arrow)"></line>
+        <line x1="505" y1="384" x2="588" y2="405" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#mem-arrow)"></line>
+
+        <line x1="780" y1="181" x2="838" y2="214" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#mem-arrow)"></line>
+        <line x1="780" y1="293" x2="838" y2="242" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#mem-arrow)"></line>
+        <line x1="780" y1="405" x2="838" y2="270" stroke="#94a3b8" stroke-width="2.5" marker-end="url(#mem-arrow)"></line>
+      </svg>
+      <p class="caption">Diagram 5. Vector memory and exact memory serve different purposes. The write-back layer decides what belongs where.</p>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3>Vector memory</h3>
+        <p>ChromaDB stores embeddings for long-term memory across four collections:</p>
+        <ul>
+          <li><code>user_memory</code></li>
+          <li><code>conversation_memory</code></li>
+          <li><code>emotional_memory</code></li>
+          <li><code>agent_behavior_memory</code></li>
+        </ul>
+        <p>Each record is tagged with <code>user_id</code> and <code>agent_id</code>, so memory is isolated per user-agent pair.</p>
+      </div>
+
+      <div class="card">
+        <h3>Exact canonical memory</h3>
+        <p>The SQLite canonical fact store is used for single-valued facts. This avoids contradictions like storing multiple current locations for the same user. If the user says "I moved to Kandy", the canonical <code>location</code> value is updated in place.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>How retrieval scores are produced</h3>
+      <p>The retriever combines dense semantic similarity with lexical BM25 reranking:</p>
+      <pre>relevance = alpha * dense_score + (1 - alpha) * lexical_score</pre>
+      <p>The default <code>alpha</code> is <code>0.7</code>, so meaning matters more than keyword overlap, but exact terms still help when they are important.</p>
+    </div>
+
+    <div class="card">
+      <h3>How write-back decides what to store</h3>
+      <p>The system does not save everything. It builds candidates from a summary and extracted facts, then decides:</p>
+      <ul>
+        <li><strong>skip</strong> when the fact is low-value or a near duplicate,</li>
+        <li><strong>insert</strong> when the fact is genuinely new,</li>
+        <li><strong>update</strong> when a canonical fact changed and should replace the previous value.</li>
+      </ul>
+      <p>This keeps memory useful, smaller, and more internally consistent.</p>
+    </div>
+  </section>
+
+  <section id="response">
+    <h2>9. How the response is created</h2>
+    <p class="sub">The final response is produced in layers. Each layer adds control, grounding, or safety.</p>
+
+    <ol class="steps">
+      <li><strong>Agent configuration is loaded.</strong> The system gets persona configuration from the main backend and merges it with the local <code>behavior.txt</code> for the selected agent.</li>
+      <li><strong>Context is assembled.</strong> The system brings together intent, emotion, canonical facts, retrieved memories, and the current message.</li>
+      <li><strong>A structured prompt is built.</strong> The prompt includes sections like <code>[PERSONA]</code>, <code>[BEHAVIOR RULES]</code>, <code>[KNOWN FACTS]</code>, <code>[USER MEMORY]</code>, <code>[CONVERSATION MEMORY]</code>, <code>[EMOTIONAL MEMORY]</code>, <code>[USER MESSAGE]</code>, and <code>[TASK]</code>.</li>
+      <li><strong>The model router chooses a provider.</strong> OpenAI is preferred for higher quality, Gemini is fallback, and the router can also choose a tool-capable generation path.</li>
+      <li><strong>The response is drafted.</strong> Either the plain <code>llm</code> node generates the reply, or the <code>tool_agent</code> node loops through tool calls before finalizing a draft.</li>
+      <li><strong>The draft is reflected on.</strong> A critic checks grounding, persona fit, and emotional sensitivity. If the answer is weak, the workflow can revise.</li>
+      <li><strong>The answer is safety-checked.</strong> Crisis, manipulation, dependency language, isolation behavior, and identity deception are detected by deterministic rules.</li>
+      <li><strong>The final text is returned.</strong> If the response is empty, the finalizer inserts a fallback supportive response.</li>
+    </ol>
+
+    <div class="card">
+      <h3>What makes the response feel consistent</h3>
+      <p>The companion does not answer from the current message alone. It answers from a composed context that includes persona instructions, exact facts about the user, semantically relevant long-term memories, conversation continuity, emotional signals, and safety rules.</p>
+    </div>
+
+    <div class="card">
+      <h3>Prompt shape used by the system</h3>
+      <pre>[PERSONA]
+persona prompt
+
+[BEHAVIOR RULES]
+persona behavior rules
+
+[KNOWN FACTS]
+exact canonical facts
+
+[USER MEMORY]
+relevant user facts
+
+[CONVERSATION MEMORY]
+relevant prior context
+
+[EMOTIONAL MEMORY]
+emotional history
+
+[UNDERSTANDING]
+intent + emotion
+
+[USER MESSAGE]
+the latest message
+
+[TASK]
+respond in character and appropriately</pre>
+    </div>
+  </section>
+
+  <section id="state">
+    <h2>10. Agent state and observability</h2>
+    <p class="sub">The graph works because every node reads and writes one shared state object.</p>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3>Key state fields</h3>
+        <ul>
+          <li><code>intent</code> and <code>emotion</code> from early understanding.</li>
+          <li><code>route</code> for the chosen path.</li>
+          <li><code>search_query</code>, <code>retrieved</code>, and <code>relevance_grade</code> for retrieval control.</li>
+          <li><code>tool_calls</code>, <code>tool_results</code>, and <code>tool_iters</code> for ReAct.</li>
+          <li><code>reflection</code>, <code>reflect_verdict</code>, and <code>reflect_iters</code> for self-critique.</li>
+          <li><code>trace</code> for decision-by-decision observability.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Why the trace matters</h3>
+        <p>The workflow appends a trace entry at major decision points. That means a debug request can show not only the final answer, but the reasoning path: which route was chosen, how many retrieval attempts happened, whether tools were used, whether reflection requested a revision, and whether safety rewrote the answer.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Run metrics collected by the system</h3>
+      <p>The observability layer summarizes the completed run into route, intent, emotion, loop counts, tools used, LLM provider, safety status, trace length, and latency. That makes it easier to evaluate the agent system as an engineered workflow instead of a black box.</p>
+    </div>
+  </section>
+
+  <section id="status">
+    <h2>11. Current integration status</h2>
+    <p class="sub">To describe the project accurately, you have to separate the implemented AI architecture from the product wiring.</p>
+
+    <div class="bordered">
+      <table>
+        <tr>
+          <th>Area</th>
+          <th>Status</th>
+          <th>Meaning</th>
+        </tr>
+        <tr>
+          <td>Agentic RAG engine</td>
+          <td><strong>Implemented</strong></td>
+          <td>The LangGraph workflow, memory engine, tools, reflection, safety, and write-back all exist in <code>ai-agent-platform-backend</code>.</td>
+        </tr>
+        <tr>
+          <td>Main product chat</td>
+          <td><strong>Not fully switched over</strong></td>
+          <td>The main backend chat service still uses its legacy agent gateway path by default.</td>
+        </tr>
+        <tr>
+          <td>Testing gateway into agent-core</td>
+          <td><strong>Available</strong></td>
+          <td>The main backend exposes <code>POST /api/v1/chat/</code> to forward requests into the AI backend.</td>
+        </tr>
+        <tr>
+          <td>Frontend shell</td>
+          <td><strong>Ready as product surface</strong></td>
+          <td>The frontend handles sessions, message sending, usage state, selected agent state, and safety reports.</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="note danger">
+      <strong>Most precise way to describe the project</strong>
+      "The project contains a real Agentic RAG AI backend, and the remaining product task is full wiring of the normal chat flow into that backend."
+    </div>
+  </section>
+
+  <section id="files">
+    <h2>12. Important files</h2>
+    <p class="sub">These are the main files to study when explaining the platform to someone else.</p>
+
+    <div class="bordered">
+      <table>
+        <tr>
+          <th>Concern</th>
+          <th>Main files</th>
+        </tr>
+        <tr>
+          <td>Workflow and state</td>
+          <td><code>ai-agent-platform-backend/graph/workflow.py</code>, <code>ai-agent-platform-backend/graph/state.py</code></td>
+        </tr>
+        <tr>
+          <td>Chat entry point</td>
+          <td><code>ai-agent-platform-backend/services/chat_service.py</code>, <code>ai-agent-platform-backend/api/chat.py</code></td>
+        </tr>
+        <tr>
+          <td>Routing and understanding</td>
+          <td><code>services/classifiers/intent_classifier.py</code>, <code>emotion_detector.py</code>, <code>route_selector.py</code></td>
+        </tr>
+        <tr>
+          <td>Memory retrieval</td>
+          <td><code>memory/memory_service.py</code>, <code>memory/memory_retriever.py</code>, <code>memory/query_planner.py</code></td>
+        </tr>
+        <tr>
+          <td>Memory write-back</td>
+          <td><code>memory/writeback/writeback_engine.py</code>, <code>fact_extractor.py</code>, <code>memory_updater.py</code></td>
+        </tr>
+        <tr>
+          <td>Exact fact storage</td>
+          <td><code>memory/structured/canonical_store.py</code></td>
+        </tr>
+        <tr>
+          <td>Tools</td>
+          <td><code>tools/builtin.py</code>, <code>tools/registry.py</code>, <code>tools/base.py</code></td>
+        </tr>
+        <tr>
+          <td>LLM routing and reflection</td>
+          <td><code>llm/llm_router.py</code>, <code>llm/openai_provider.py</code>, <code>llm/gemini_provider.py</code>, <code>llm/reflection.py</code></td>
+        </tr>
+        <tr>
+          <td>Safety</td>
+          <td><code>safety/engine.py</code>, <code>graph/safety_node.py</code></td>
+        </tr>
+        <tr>
+          <td>Main backend integration</td>
+          <td><code>companio-main-backend/apps/chats/services.py</code>, <code>companio-main-backend/apps/agent_gateway/services.py</code>, <code>agent_client.py</code>, <code>views.py</code></td>
+        </tr>
+        <tr>
+          <td>Frontend chat surface</td>
+          <td><code>react-frontend/src/features/chat/ChatPage.jsx</code>, <code>react-frontend/src/services/chatService.js</code></td>
+        </tr>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    This version is intentionally restructured around multiple simpler diagrams and route-by-route explanation so the graph is easier to understand. If needed, the next step can be a second HTML focused only on presentation language for a report, viva, or investor deck.
+  </footer>
+</div>
+</body>
+</html>
