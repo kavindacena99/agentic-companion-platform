@@ -22,9 +22,15 @@ from typing import Any, Dict, List
 from langgraph.graph import END, START, StateGraph
 
 from graph.safety_node import safety_node
-from graph.state import AgentState, append_trace
+from graph.state import MAX_RETRIEVE_ITERS, AgentState, append_trace
 from llm.llm_router import route_llm
 from memory.memory_service import get_relevant_memories
+from memory.query_planner import (
+    best_relevance,
+    grade_memories,
+    plan_query,
+    reformulate_query,
+)
 from memory.writeback.writeback_engine import process_writeback
 from safety.engine import SafetyEngine
 from services.agent_loader import AgentLoaderError, AgentLoaderService
@@ -178,28 +184,101 @@ def agent_loader_node(state: AgentState) -> Dict[str, Any]:
 
 
 # ----------------------------------------------------------------------
-# NODE 5 — Memory retrieval (integrates Step 4, never modifies it)
+# NODE 5a — Plan query: rewrite the user message into a search query
 # ----------------------------------------------------------------------
-def memory_retriever_node(state: AgentState) -> Dict[str, Any]:
+def plan_query_node(state: AgentState) -> Dict[str, Any]:
+    """Seed the retrieval loop with a focused search query."""
+    query = plan_query(state.get("message", ""))
+    logger.debug("Plan-query node -> %r", query)
+    return {"search_query": query, "trace": append_trace(state, "plan_query", "planned")}
+
+
+# ----------------------------------------------------------------------
+# NODE 5b — Retrieve: hybrid memory search for the current search_query
+# ----------------------------------------------------------------------
+def retrieve_node(state: AgentState) -> Dict[str, Any]:
+    """Run one retrieval pass and record the flattened candidate pool.
+
+    Uses ``search_query`` (set by plan/reformulate; falls back to the raw
+    message), increments ``retrieve_iters``, and aggregates every hit into
+    ``retrieved`` for the grader. Populates the per-collection memory fields the
+    context builder consumes, so the last (best) pass grounds the response.
+    """
     context = dict(state.get("context") or {})
+    query = state.get("search_query") or state.get("message", "")
+    iters = int(state.get("retrieve_iters") or 0) + 1
+
     try:
         memories = get_relevant_memories(
-            query=state.get("message", ""),
+            query=query,
             user_id=state["user_id"],
             agent_id=state["agent_id"],
             top_k=5,
         )
     except Exception as exc:  # noqa: BLE001 — memory must never crash reasoning
-        logger.warning("Memory node: retrieval failed: %s", exc)
+        logger.warning("Retrieve node: retrieval failed: %s", exc)
         memories = {}
+
+    retrieved: List[Dict[str, Any]] = []
+    for hits in memories.values():
+        retrieved.extend(hits)
 
     context["emotional_memory"] = memories.get("emotional_memory", [])
     return {
         "user_memory": memories.get("user_memory", []),
         "conversation_memory": memories.get("conversation_memory", []),
         "agent_memory": memories.get("agent_behavior_memory", []),
+        "retrieved": retrieved,
+        "retrieve_iters": iters,
         "context": context,
+        "trace": append_trace(state, "retrieve", f"pass_{iters}", hits=len(retrieved)),
     }
+
+
+# ----------------------------------------------------------------------
+# NODE 5c — Grade: are the retrieved memories good enough to ground on?
+# ----------------------------------------------------------------------
+def grade_node(state: AgentState) -> Dict[str, Any]:
+    """Score the latest retrieval pass as sufficient / insufficient."""
+    retrieved = state.get("retrieved") or []
+    grade = grade_memories(retrieved)
+    best = round(best_relevance(retrieved), 4)
+    logger.debug("Grade node -> %s (best_relevance=%.4f)", grade, best)
+    return {
+        "relevance_grade": grade,
+        "trace": append_trace(state, "grade", grade, best_relevance=best),
+    }
+
+
+# ----------------------------------------------------------------------
+# NODE 5d — Reformulate: produce an improved query, then loop to retrieve
+# ----------------------------------------------------------------------
+def reformulate_node(state: AgentState) -> Dict[str, Any]:
+    """Improve the search query for another retrieval pass."""
+    iteration = int(state.get("retrieve_iters") or 0)
+    query = reformulate_query(
+        state.get("message", ""),
+        iteration=iteration,
+        emotion=state.get("emotion"),
+        intent=state.get("intent"),
+    )
+    logger.debug("Reformulate node -> %r (iteration=%d)", query, iteration)
+    return {
+        "search_query": query,
+        "trace": append_trace(state, "reformulate", "requery", iteration=iteration),
+    }
+
+
+def route_after_grade(state: AgentState) -> str:
+    """Conditional-edge selector for the retrieval loop.
+
+    Loop back to ``reformulate`` while the grade is insufficient AND the loop
+    budget (``MAX_RETRIEVE_ITERS``) is not exhausted; otherwise proceed to
+    generation best-effort.
+    """
+    insufficient = state.get("relevance_grade") == "insufficient"
+    has_budget = int(state.get("retrieve_iters") or 0) < MAX_RETRIEVE_ITERS
+    return "reformulate" if (insufficient and has_budget) else "generate"
 
 
 # ----------------------------------------------------------------------
@@ -340,7 +419,12 @@ def build_workflow():
 
     * ``crisis``   → crisis_response → safety → END   (no retrieval, no LLM)
     * ``direct``   → agent_loader → context_builder → … (skips retrieval)
-    * ``retrieve`` / ``tool`` → agent_loader → memory_retriever → …
+    * ``retrieve`` / ``tool`` → agent_loader → self-correcting retrieval loop
+      (plan_query → retrieve → grade → [reformulate → retrieve]* → generate)
+
+    The retrieval loop is bounded by ``MAX_RETRIEVE_ITERS``: while the grade is
+    insufficient and budget remains it reformulates and retries, otherwise it
+    proceeds to generation best-effort.
     """
     builder = StateGraph(AgentState)
 
@@ -350,7 +434,10 @@ def build_workflow():
     builder.add_node("router", router_node)
     builder.add_node("crisis_response", crisis_response_node)
     builder.add_node("agent_loader", agent_loader_node)
-    builder.add_node("memory_retriever", memory_retriever_node)
+    builder.add_node("plan_query", plan_query_node)
+    builder.add_node("retrieve", retrieve_node)
+    builder.add_node("grade", grade_node)
+    builder.add_node("reformulate", reformulate_node)
     builder.add_node("context_builder", context_builder_node)
     builder.add_node("prompt_builder", prompt_builder_node)
     builder.add_node("llm", llm_node)
@@ -375,13 +462,23 @@ def build_workflow():
     builder.add_edge("crisis_response", "safety")
 
     # After loading the agent, `direct` turns skip retrieval; `retrieve`/`tool`
-    # turns enter the memory pipeline first.
+    # turns enter the self-correcting retrieval loop.
     builder.add_conditional_edges(
         "agent_loader",
         route_after_agent_loader,
-        {"direct": "context_builder", "retrieve": "memory_retriever"},
+        {"direct": "context_builder", "retrieve": "plan_query"},
     )
-    builder.add_edge("memory_retriever", "context_builder")
+
+    # Self-correcting retrieval loop: plan → retrieve → grade → (reformulate → retrieve)*
+    builder.add_edge("plan_query", "retrieve")
+    builder.add_edge("retrieve", "grade")
+    builder.add_conditional_edges(
+        "grade",
+        route_after_grade,
+        {"reformulate": "reformulate", "generate": "context_builder"},
+    )
+    builder.add_edge("reformulate", "retrieve")
+
     builder.add_edge("context_builder", "prompt_builder")
     builder.add_edge("prompt_builder", "llm")
     builder.add_edge("llm", "safety")
