@@ -579,7 +579,11 @@ def writeback_node(state: AgentState) -> Dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 — writeback must never fail a reply
         logger.warning("Writeback node: failed to persist memories: %s", exc)
         updates = []
-    return {"memory_updates": updates}
+    stored = sum(1 for u in updates if u.get("action") in ("insert", "update"))
+    return {
+        "memory_updates": updates,
+        "trace": append_trace(state, "writeback", "learned", stored=stored, candidates=len(updates)),
+    }
 
 
 # ----------------------------------------------------------------------

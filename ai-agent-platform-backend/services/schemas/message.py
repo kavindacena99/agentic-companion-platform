@@ -11,3 +11,6 @@ class ChatMessage(BaseModel):
     agent_id: str
     session_id: str
     message: str
+    # When true (and trace exposure is enabled server-side), the response
+    # includes the decision trace + run metrics for debugging.
+    debug: bool = False

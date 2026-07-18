@@ -123,7 +123,8 @@ class CrisisFastPathTests(_GraphHarness):
     def test_crisis_path_nodes(self):
         state = self._run("I want to kill myself")
         nodes = [entry["node"] for entry in state["trace"]]
-        self.assertEqual(nodes, ["input", "intent", "router", "crisis_response"])
+        # Fast-path: understanding → crisis_response → safety (no retrieval/LLM).
+        self.assertEqual(nodes, ["input", "intent", "router", "crisis_response", "safety"])
         self.assertTrue(state["safety_flags"]["crisis"])
 
 

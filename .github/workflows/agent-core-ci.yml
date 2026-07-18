@@ -1,0 +1,43 @@
+name: agent-core tests
+
+on:
+  push:
+    paths:
+      - "ai-agent-platform-backend/**"
+      - ".github/workflows/agent-core-ci.yml"
+  pull_request:
+    paths:
+      - "ai-agent-platform-backend/**"
+      - ".github/workflows/agent-core-ci.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai-agent-platform-backend
+    env:
+      # Deterministic, offline-friendly config for the test/eval suites.
+      EMBEDDING_PROVIDER: placeholder
+      AGENT_CORE_EXPOSE_TRACE: "true"
+      DJANGO_SECRET_KEY: ci-test-secret
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ai-agent-platform-backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Unit tests (memory, graph, llm, tools, services)
+        run: python -m unittest discover -p "tests_*.py" -v
+
+      - name: Evaluation suite (routing / retrieval / groundedness / safety)
+        run: python -m unittest tests.eval.test_eval -v
