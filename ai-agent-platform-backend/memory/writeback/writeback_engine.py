@@ -1,8 +1,11 @@
 """Writeback engine — makes the AI learn from each conversation.
 
-Orchestrates: summarize -> extract facts -> classify -> store in ChromaDB.
-Depends only on the memory layer (no LLM, no Main Backend). Provides a sync
-entry point plus an async wrapper for future scaling.
+Orchestrates: summarize -> extract candidate facts -> **decide/dedup/update** ->
+persist in ChromaDB. Rather than storing every candidate, each one is routed
+through :func:`~memory.writeback.memory_updater.decide_write`, which skips
+low-value or duplicate facts and updates canonical facts (name/location/…) in
+place when they change. Depends only on the memory layer (no LLM, no Main
+Backend). Provides a sync entry point plus an async wrapper for future scaling.
 """
 
 import asyncio
@@ -10,9 +13,9 @@ import logging
 from typing import Any, Dict, List
 
 from memory.collections import CONVERSATION_MEMORY
-from memory.memory_writer import store_memory
 from memory.writeback.fact_extractor import extract_facts
 from memory.writeback.memory_classifier import classify_memory
+from memory.writeback.memory_updater import decide_write, should_store
 from memory.writeback.summarizer import summarize_conversation
 
 logger = logging.getLogger("agent_core")
@@ -31,47 +34,41 @@ def process_writeback(
     messages: List[Dict],
     response: str,
 ) -> List[Dict[str, Any]]:
-    """Summarize, extract, classify and persist memories for one exchange.
+    """Summarize, extract, and agentically persist memories for one exchange.
 
-    Returns a list of writeback records describing what was stored.
+    Returns a record per candidate describing the decision taken
+    (``insert`` / ``update`` / ``skip``) and where.
     """
     updates: List[Dict[str, Any]] = []
 
-    # 1) Conversation summary -> conversation_memory.
+    # Build the candidate list: a conversation summary plus extracted facts.
+    candidates: List[Dict[str, Any]] = []
     summary = summarize_conversation(messages)
     if summary:
-        record_id = store_memory(
-            CONVERSATION_MEMORY, user_id, agent_id, summary, {"kind": "summary"}
+        candidates.append(
+            {"type": "summary", "content": summary, "importance": "medium", "canonical": False}
         )
-        updates.append(
-            {"collection": CONVERSATION_MEMORY, "id": record_id, "content": summary}
-        )
+    candidates.extend(extract_facts(_last_user_message(messages), response))
 
-    # 2) Extract facts, classify each, and store in the right collection.
-    facts = extract_facts(_last_user_message(messages), response)
-    for fact in facts:
+    # Decide store-or-skip per candidate, then dedup / update / insert.
+    for fact in candidates:
+        if not should_store(fact):
+            updates.append(
+                {"action": "skip", "reason": "low_value", "content": fact.get("content")}
+            )
+            continue
         collection = classify_memory(fact)
-        record_id = store_memory(
-            collection,
-            user_id,
-            agent_id,
-            fact["content"],
-            {"source_type": fact.get("type"), "importance": fact.get("importance", "medium")},
-        )
-        updates.append(
-            {
-                "collection": collection,
-                "id": record_id,
-                "content": fact["content"],
-                "importance": fact.get("importance", "medium"),
-            }
-        )
+        result = decide_write(collection, user_id, agent_id, fact)
+        updates.append({"collection": collection, "importance": fact.get("importance", "medium"), **result})
 
+    stored = sum(1 for u in updates if u.get("action") in ("insert", "update"))
     logger.info(
-        "Writeback for user=%s agent=%s stored %d memories.",
+        "Writeback for user=%s agent=%s: %d candidates -> %d stored/updated, %d skipped.",
         user_id,
         agent_id,
         len(updates),
+        stored,
+        len(updates) - stored,
     )
     return updates
 
