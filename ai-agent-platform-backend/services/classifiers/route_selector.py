@@ -26,9 +26,20 @@ ROUTE_TYPES: List[str] = [ROUTE_CRISIS, ROUTE_DIRECT, ROUTE_RETRIEVE, ROUTE_TOOL
 # Intents (from the intent classifier) that warrant memory retrieval.
 _RETRIEVE_INTENTS = {"question", "emotional"}
 
-# Explicit real-time / external-data needs a tool would satisfy. Deliberately
-# narrow so we only divert clear tool cases away from ordinary retrieval.
+# Explicit action / external-data needs a tool would satisfy. Deliberately
+# narrow so we only divert clear tool cases away from ordinary retrieval. These
+# mirror the built-in tools (set_reminder, suggest_activity, search_web).
 _TOOL_PATTERNS = [
+    # set_reminder
+    r"\bremind me\b",
+    r"\bset (?:a |an )?reminder\b",
+    r"\breminder to\b",
+    # suggest_activity
+    r"\bsuggest (?:an? )?activit\w*\b",
+    r"\bwhat should i do\b",
+    r"\b(?:i'?m|i am) bored\b",
+    r"\bgive me (?:an? )?idea\b",
+    # search_web / real-time data
     r"\bweather\b",
     r"\bforecast\b",
     r"\bwhat time is it\b",
