@@ -22,9 +22,16 @@ from typing import Any, Dict, List
 from langgraph.graph import END, START, StateGraph
 
 from graph.safety_node import safety_node
-from graph.state import MAX_REFLECT_ITERS, MAX_RETRIEVE_ITERS, AgentState, append_trace
-from llm.llm_router import route_llm
+from graph.state import (
+    MAX_REFLECT_ITERS,
+    MAX_RETRIEVE_ITERS,
+    MAX_TOOL_ITERS,
+    AgentState,
+    append_trace,
+)
+from llm.llm_router import route_llm, route_tools
 from llm.reflection import REVISE, reflect_on_response
+from tools.registry import default_registry
 from memory.memory_service import get_relevant_memories
 from memory.query_planner import (
     best_relevance,
@@ -45,10 +52,10 @@ from services.classifiers.route_selector import (
 
 logger = logging.getLogger("agent_core")
 
-# Safety ceiling on graph steps. Two bounded loops (retrieval + reflection) can
-# compound, so this sits comfortably above their worst-case combined length; the
-# real bounds are ``MAX_RETRIEVE_ITERS`` / ``MAX_REFLECT_ITERS``.
-RECURSION_LIMIT = 50
+# Safety ceiling on graph steps. Three bounded loops (retrieval + tool ReAct +
+# reflection) can compound, so this sits comfortably above their worst-case
+# combined length; the real bounds are the ``MAX_*_ITERS`` counters.
+RECURSION_LIMIT = 80
 
 
 # ----------------------------------------------------------------------
@@ -384,6 +391,120 @@ def llm_node(state: AgentState) -> Dict[str, Any]:
     return {"response": result.get("response", ""), "context": context}
 
 
+def route_after_prompt(state: AgentState) -> str:
+    """Conditional-edge selector: the ``tool`` route enters the ReAct loop."""
+    return "tool" if state.get("route") == ROUTE_TOOL else "generate"
+
+
+# ----------------------------------------------------------------------
+# NODE 8t — Tool agent (ReAct): decide to call a tool or answer directly
+# ----------------------------------------------------------------------
+def _with_observations(text: str, tool_results: List[Dict[str, Any]]) -> str:
+    """Append accumulated tool observations to ``text`` (the ReAct scratchpad)."""
+    if not tool_results:
+        return text
+    lines = ["", "[TOOL OBSERVATIONS]"]
+    for item in tool_results:
+        lines.append(f"- {item.get('name')}: {item.get('observation')}")
+    return f"{text}\n" + "\n".join(lines)
+
+
+def tool_agent_node(state: AgentState) -> Dict[str, Any]:
+    """One ReAct step: ask a tool-capable model to use a tool or give a final answer.
+
+    Rebuilds the prompt + accumulated observations each round (so a later
+    revision pass starts fresh), then:
+
+    * model requests tool(s) → store ``tool_calls`` for the executor;
+    * model returns text → that is the final draft;
+    * no tool-capable provider / budget exhausted → degrade to a plain
+      generation grounded in the observations gathered so far.
+    """
+    prompt = state.get("prompt", "")
+    tool_results = list(state.get("tool_results") or [])
+    tool_iters = int(state.get("tool_iters") or 0)
+    context = state.get("context") or {}
+
+    messages = [
+        {"role": "system", "content": prompt},
+        {"role": "user", "content": _with_observations(state.get("message", ""), tool_results)},
+    ]
+
+    result: Dict[str, Any] = {"ok": False}
+    if tool_iters < MAX_TOOL_ITERS:
+        result = route_tools(messages, default_registry.schemas(), context)
+
+    if result.get("ok") and result.get("type") == "tool_calls":
+        calls = result.get("tool_calls") or []
+        names = [call.get("name") for call in calls]
+        logger.debug("Tool agent: model requested tools %s", names)
+        return {
+            "tool_calls": calls,
+            "trace": append_trace(state, "tool_agent", "use_tool", tools=names),
+        }
+
+    if result.get("ok") and result.get("type") == "text":
+        return {
+            "response": result.get("text", ""),
+            "tool_calls": [],
+            "trace": append_trace(state, "tool_agent", "final_answer"),
+        }
+
+    # Degrade / budget exhausted: produce a final reply with plain generation,
+    # grounded in whatever observations were gathered.
+    reason = "budget_exhausted" if tool_iters >= MAX_TOOL_ITERS else "no_tool_provider"
+    final = route_llm(_with_observations(prompt, tool_results), {"intent": state.get("intent")})
+    return {
+        "response": final.get("response", ""),
+        "tool_calls": [],
+        "trace": append_trace(state, "tool_agent", "final_answer", degraded=reason),
+    }
+
+
+def route_after_tool_agent(state: AgentState) -> str:
+    """Conditional-edge selector: pending tool calls execute, otherwise reflect."""
+    return "execute" if state.get("tool_calls") else "done"
+
+
+# ----------------------------------------------------------------------
+# NODE 8x — Tool executor: run the requested tools, record observations
+# ----------------------------------------------------------------------
+def tool_executor_node(state: AgentState) -> Dict[str, Any]:
+    """Execute pending ``tool_calls`` and append their observations, then loop."""
+    tool_calls = state.get("tool_calls") or []
+    results = list(state.get("tool_results") or [])
+    exec_context = {
+        **(state.get("context") or {}),
+        "user_id": state.get("user_id", ""),
+        "agent_id": state.get("agent_id", ""),
+        "emotion": state.get("emotion"),
+    }
+
+    executed: List[str] = []
+    for call in tool_calls:
+        name = call.get("name", "")
+        arguments = call.get("arguments") or {}
+        outcome = default_registry.execute(name, arguments, exec_context)
+        observation = outcome.to_observation()
+        results.append(
+            {
+                "name": name,
+                "arguments": arguments,
+                "ok": outcome.ok,
+                "observation": observation,
+            }
+        )
+        executed.append(name)
+        logger.debug("Tool executor: %s -> %s", name, observation)
+
+    return {
+        "tool_results": results,
+        "tool_calls": [],
+        "tool_iters": int(state.get("tool_iters") or 0) + 1,
+        "trace": append_trace(state, "tool_executor", "observed", tools=executed),
+    }
+
+
 # ----------------------------------------------------------------------
 # NODE 8.5 — Reflection: cheap-model critic over the draft (quality, not safety)
 # ----------------------------------------------------------------------
@@ -475,9 +596,14 @@ def build_workflow():
     * ``retrieve`` / ``tool`` → agent_loader → self-correcting retrieval loop
       (plan_query → retrieve → grade → [reformulate → retrieve]* → generate)
 
-    The retrieval loop is bounded by ``MAX_RETRIEVE_ITERS``: while the grade is
-    insufficient and budget remains it reformulates and retries, otherwise it
-    proceeds to generation best-effort.
+    After the prompt is built, the ``tool`` route enters a ReAct tool loop
+    (tool_agent → [tool_executor → tool_agent]*) while other routes generate
+    once via ``llm``. Both feed the self-reflection loop, then the always-run
+    deterministic safety gate.
+
+    Every loop is bounded — retrieval by ``MAX_RETRIEVE_ITERS``, tools by
+    ``MAX_TOOL_ITERS``, reflection by ``MAX_REFLECT_ITERS`` — so the graph
+    always terminates and proceeds best-effort when a budget is exhausted.
     """
     builder = StateGraph(AgentState)
 
@@ -494,6 +620,8 @@ def build_workflow():
     builder.add_node("context_builder", context_builder_node)
     builder.add_node("prompt_builder", prompt_builder_node)
     builder.add_node("llm", llm_node)
+    builder.add_node("tool_agent", tool_agent_node)
+    builder.add_node("tool_executor", tool_executor_node)
     builder.add_node("reflect", reflect_node)
     builder.add_node("safety", safety_node)
     builder.add_node("response_finalizer", response_finalizer_node)
@@ -534,7 +662,22 @@ def build_workflow():
     builder.add_edge("reformulate", "retrieve")
 
     builder.add_edge("context_builder", "prompt_builder")
-    builder.add_edge("prompt_builder", "llm")
+
+    # Generation fork: the `tool` route enters a ReAct loop; others generate once.
+    builder.add_conditional_edges(
+        "prompt_builder",
+        route_after_prompt,
+        {"tool": "tool_agent", "generate": "llm"},
+    )
+
+    # ReAct tool loop: generate → (use_tool → execute → observe → generate)* → done.
+    # Bounded by tool_iters; `done` yields a final draft that flows into reflect.
+    builder.add_conditional_edges(
+        "tool_agent",
+        route_after_tool_agent,
+        {"execute": "tool_executor", "done": "reflect"},
+    )
+    builder.add_edge("tool_executor", "tool_agent")
 
     # Self-reflection loop: the critic judges the draft before the safety gate.
     # `revise` loops back to re-retrieve + regenerate (bounded by reflect_iters);
@@ -584,6 +727,7 @@ def initial_state(user_id: str, agent_id: str, session_id: str, message: str) ->
         retrieve_iters=0,
         tool_calls=[],
         tool_results=[],
+        tool_iters=0,
         reflection=None,
         reflect_verdict=None,
         reflect_iters=0,

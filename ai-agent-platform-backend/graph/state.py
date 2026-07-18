@@ -22,6 +22,8 @@ from typing import Any, Dict, List, Optional, TypedDict
 # back; on reaching the cap it must fall through to the next stage instead.
 MAX_RETRIEVE_ITERS = 3
 MAX_REFLECT_ITERS = 2
+# Cap on ReAct tool rounds (generate → use_tool → observe) per turn.
+MAX_TOOL_ITERS = 3
 
 
 class AgentState(TypedDict):
@@ -91,10 +93,12 @@ class AgentState(TypedDict):
     relevance_grade: Optional[str]
     # How many retrieval passes have run — bounded by ``MAX_RETRIEVE_ITERS``.
     retrieve_iters: int
-    # Tool invocations the agent requested this turn.
+    # Tool invocations the agent requested this turn (pending execution).
     tool_calls: List[Dict[str, Any]]
-    # Results returned for the requested ``tool_calls``.
+    # Observations returned for executed tools (the ReAct scratchpad results).
     tool_results: List[Dict[str, Any]]
+    # How many ReAct tool rounds have run — bounded by ``MAX_TOOL_ITERS``.
+    tool_iters: int
     # Self-critique of a draft response produced by a reflection node.
     reflection: Optional[str]
     # Reflection verdict on the current draft ("accept" / "revise").

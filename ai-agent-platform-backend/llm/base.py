@@ -6,7 +6,7 @@ is the only thing that selects between them.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Dict, List
 
 
 class LLMProvider(ABC):
@@ -27,3 +27,33 @@ class LLMProvider(ABC):
         Subclasses should override (e.g. check for an API key / installed SDK).
         """
         return False
+
+    # ------------------------------------------------------------------
+    # Tool / function calling (optional capability)
+    # ------------------------------------------------------------------
+    def supports_tools(self) -> bool:
+        """Whether this provider implements :meth:`generate_with_tools`.
+
+        Defaults to ``False`` so providers without function-calling are simply
+        skipped by the tool router. Providers opt in by overriding this.
+        """
+        return False
+
+    def generate_with_tools(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: List[Dict[str, Any]],
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """Run one function-calling turn over ``messages`` with ``tools`` available.
+
+        Returns a **normalized** dict, independent of any vendor SDK:
+
+        * ``{"type": "tool_calls", "tool_calls": [{"id", "name", "arguments"}],
+          "raw_message": <provider assistant message>}`` — the model wants to
+          call one or more tools; ``arguments`` is a parsed ``dict``.
+        * ``{"type": "text", "text": <str>}`` — the model produced a final answer.
+
+        Providers that do not support tools should leave this raising.
+        """
+        raise NotImplementedError(f"{self.name} does not support tool calling.")

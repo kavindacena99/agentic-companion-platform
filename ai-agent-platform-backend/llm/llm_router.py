@@ -72,6 +72,43 @@ class LLMRouter:
         logger.error("No LLM provider was available; returning safe fallback response.")
         return {"provider": "none", "response": _FALLBACK_RESPONSE, "ok": False}
 
+    def route_tools(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: List[Dict[str, Any]],
+        context: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any]:
+        """Run one function-calling turn through the best tool-capable provider.
+
+        Only providers advertising ``supports_tools()`` are considered (OpenAI
+        today; Gemini is guarded out until its function-calling adapter lands),
+        tried in quality order with fallback. Returns the provider's normalized
+        result plus ``{provider, ok}``. When no tool-capable provider is usable
+        or all fail, returns ``{"ok": False}`` so the caller can degrade to plain
+        text generation instead of crashing.
+        """
+        context = context or {}
+        order = self._provider_order(context)
+
+        for name in order:
+            provider = self.providers.get(name)
+            if provider is None or not provider.supports_tools():
+                continue
+            try:
+                result = provider.generate_with_tools(
+                    messages, tools, **context.get("llm_kwargs", {})
+                )
+                result["provider"] = name
+                result["ok"] = True
+                logger.info("Tool-calling turn handled via provider '%s'", name)
+                return result
+            except Exception as exc:  # noqa: BLE001 — fall back on any provider error
+                logger.warning("Tool provider '%s' failed, falling back: %s", name, exc)
+                continue
+
+        logger.warning("No tool-capable provider was available.")
+        return {"provider": "none", "ok": False}
+
 
 # Shared default router instance + module-level convenience function.
 _default_router = LLMRouter()
@@ -80,3 +117,12 @@ _default_router = LLMRouter()
 def route_llm(prompt: str, context: Dict[str, Any] | None = None) -> Dict[str, Any]:
     """Module-level entry point: route ``prompt`` using the default router."""
     return _default_router.route(prompt, context)
+
+
+def route_tools(
+    messages: List[Dict[str, Any]],
+    tools: List[Dict[str, Any]],
+    context: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
+    """Module-level entry point: run a tool-calling turn via the default router."""
+    return _default_router.route_tools(messages, tools, context)
