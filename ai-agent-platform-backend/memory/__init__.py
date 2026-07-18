@@ -13,6 +13,7 @@ from memory.collections import (
     init_collections,
 )
 from memory.memory_service import (
+    get_canonical_facts,
     get_relevant_memories,
     save_agent_behavior_memory,
     save_conversation_memory,
@@ -31,4 +32,5 @@ __all__ = [
     "save_emotional_memory",
     "save_agent_behavior_memory",
     "get_relevant_memories",
+    "get_canonical_facts",
 ]

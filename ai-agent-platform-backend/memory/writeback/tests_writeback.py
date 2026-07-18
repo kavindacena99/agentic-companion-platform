@@ -17,7 +17,9 @@ from memory import chroma_client
 from memory.collections import USER_MEMORY
 from memory.embeddings import reset_embedding_provider
 from memory.memory_retriever import search_memory
+from memory.memory_service import get_canonical_facts
 from memory.memory_writer import get_memory, store_memory, update_memory
+from memory.structured.canonical_store import reset_canonical_store
 from memory.writeback.fact_extractor import extract_facts
 from memory.writeback.memory_updater import decide_write, should_store
 from memory.writeback.writeback_engine import process_writeback
@@ -72,21 +74,30 @@ class _MemoryDBTest(unittest.TestCase):
         # embeddings so no network / API key is needed.
         self._saved_provider = os.environ.get("EMBEDDING_PROVIDER")
         self._saved_path = os.environ.get("CHROMA_DB_PATH")
+        self._saved_canon = os.environ.get("CANONICAL_DB_PATH")
         os.environ["EMBEDDING_PROVIDER"] = "placeholder"
         reset_embedding_provider()
         self._tmpdir = tempfile.mkdtemp(prefix="wb_test_")
         os.environ["CHROMA_DB_PATH"] = self._tmpdir
+        # Isolate the structured store too, so canonical facts don't leak.
+        os.environ["CANONICAL_DB_PATH"] = os.path.join(self._tmpdir, "canon.sqlite3")
+        reset_canonical_store()
         self._saved_client = chroma_client._client
         chroma_client._client = None
 
     def tearDown(self):
         chroma_client._client = self._saved_client
-        for key, value in (("EMBEDDING_PROVIDER", self._saved_provider), ("CHROMA_DB_PATH", self._saved_path)):
+        for key, value in (
+            ("EMBEDDING_PROVIDER", self._saved_provider),
+            ("CHROMA_DB_PATH", self._saved_path),
+            ("CANONICAL_DB_PATH", self._saved_canon),
+        ):
             if value is None:
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = value
         reset_embedding_provider()
+        reset_canonical_store()
         shutil.rmtree(self._tmpdir, ignore_errors=True)
 
     def _location_records(self, user="u1", agent="a1"):
@@ -146,6 +157,21 @@ class DecideWriteTests(_MemoryDBTest):
         decide_write(USER_MEMORY, "u1", "a1", self._fact("User lives in Colombo", "location", True))
         result = decide_write(USER_MEMORY, "u1", "a2", self._fact("User lives in Kandy", "location", True))
         self.assertEqual(result["action"], "insert")
+
+    def test_canonical_fact_lands_in_structured_store(self):
+        decide_write(USER_MEMORY, "u1", "a1", self._fact("User lives in Colombo", "location", True))
+        decide_write(USER_MEMORY, "u1", "a1", self._fact("User's name is Sam", "name", True))
+        self.assertEqual(
+            get_canonical_facts("u1", "a1"),
+            {"location": "User lives in Colombo", "name": "User's name is Sam"},
+        )
+
+    def test_structured_store_updates_on_contradiction(self):
+        decide_write(USER_MEMORY, "u1", "a1", self._fact("User lives in Colombo", "location", True))
+        decide_write(USER_MEMORY, "u1", "a1", self._fact("User lives in Kandy", "location", True))
+        # SQL holds exactly one, current value — vectors stayed in sync too.
+        self.assertEqual(get_canonical_facts("u1", "a1"), {"location": "User lives in Kandy"})
+        self.assertEqual(self._location_records(), ["User lives in Kandy"])
 
 
 class ProcessWritebackTests(_MemoryDBTest):

@@ -18,6 +18,7 @@ from memory.collections import (
 )
 from memory.memory_retriever import DEFAULT_ALPHA, search_memory
 from memory.memory_writer import store_memory
+from memory.structured.canonical_store import get_canonical_store
 
 logger = logging.getLogger("agent_core")
 
@@ -100,3 +101,15 @@ def get_relevant_memories(
         len(target_collections),
     )
     return results
+
+
+# ----------------------------------------------------------------------
+# Structured (SQL) canonical facts — precise lookups
+# ----------------------------------------------------------------------
+def get_canonical_facts(user_id: str, agent_id: str) -> Dict[str, str]:
+    """Return the exact canonical facts (name, location, …) for a user+agent.
+
+    Reads the structured SQL store — precise and always-current, complementing
+    the fuzzy vector recall. Scoped strictly to ``user_id`` + ``agent_id``.
+    """
+    return get_canonical_store().get_all(user_id, agent_id)
