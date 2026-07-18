@@ -26,10 +26,21 @@ from graph.state import AgentState, append_trace
 from llm.llm_router import route_llm
 from memory.memory_service import get_relevant_memories
 from memory.writeback.writeback_engine import process_writeback
+from safety.engine import SafetyEngine
 from services.agent_loader import AgentLoaderError, AgentLoaderService
-from services.classifiers import classify_intent, detect_emotion
+from services.classifiers import classify_intent, detect_emotion, select_route
+from services.classifiers.route_selector import (
+    ROUTE_CRISIS,
+    ROUTE_DIRECT,
+    ROUTE_RETRIEVE,
+    ROUTE_TOOL,
+)
 
 logger = logging.getLogger("agent_core")
+
+# Safety ceiling on graph steps. The pipeline is short, but conditional/looping
+# edges mean a bug could, in principle, cycle — this bounds every invocation.
+RECURSION_LIMIT = 25
 
 
 # ----------------------------------------------------------------------
@@ -84,6 +95,57 @@ def emotion_node(state: AgentState) -> Dict[str, Any]:
     emotion = detect_emotion(state.get("message", ""))
     logger.debug("Emotion node -> %s", emotion)
     return {"emotion": emotion}
+
+
+# ----------------------------------------------------------------------
+# NODE 3.5 — Router: pick the pipeline path (agentic conditional control)
+# ----------------------------------------------------------------------
+def router_node(state: AgentState) -> Dict[str, Any]:
+    """Decide the route for this turn and record it on ``state['route']``.
+
+    Reuses the deterministic intent classifier (already applied by the intent
+    node) plus a tool-need heuristic. The route drives the conditional edges:
+    ``crisis`` takes the LLM-free fast-path, ``direct`` skips retrieval,
+    ``retrieve`` / ``tool`` enter the memory pipeline.
+    """
+    route = select_route(state.get("intent") or "", state.get("message", ""))
+    logger.debug("Router node -> %s", route)
+    return {"route": route, "trace": append_trace(state, "router", route)}
+
+
+def route_from_router(state: AgentState) -> str:
+    """Conditional-edge selector: crisis forks to the fast-path, else continue."""
+    return ROUTE_CRISIS if state.get("route") == ROUTE_CRISIS else "proceed"
+
+
+def route_after_agent_loader(state: AgentState) -> str:
+    """Conditional-edge selector: ``direct`` skips retrieval, others retrieve."""
+    return "direct" if state.get("route") == ROUTE_DIRECT else "retrieve"
+
+
+def route_after_safety(state: AgentState) -> str:
+    """Conditional-edge selector: crisis ends after safety, else finalize."""
+    return "end" if state.get("route") == ROUTE_CRISIS else "continue"
+
+
+# ----------------------------------------------------------------------
+# NODE 3.6 — Crisis response: deterministic, LLM-free support message
+# ----------------------------------------------------------------------
+def crisis_response_node(state: AgentState) -> Dict[str, Any]:
+    """Emit the deterministic crisis support message — no retrieval, no LLM.
+
+    The safety engine owns the exact wording so the crisis text stays in one
+    place. The downstream safety node re-affirms it (idempotent).
+    """
+    safety_flags = dict(state.get("safety_flags") or {})
+    safety_flags["crisis"] = True
+    response = SafetyEngine().build_crisis_response()
+    logger.warning("Crisis fast-path: returning deterministic support message (no LLM).")
+    return {
+        "response": response,
+        "safety_flags": safety_flags,
+        "trace": append_trace(state, "crisis_response", "support_message"),
+    }
 
 
 # ----------------------------------------------------------------------
@@ -271,12 +333,22 @@ def writeback_node(state: AgentState) -> Dict[str, Any]:
 # Graph assembly
 # ----------------------------------------------------------------------
 def build_workflow():
-    """Build and compile the linear reasoning graph."""
+    """Build and compile the agentic reasoning graph (conditional routing).
+
+    After understanding the message, a ``router`` picks a route and conditional
+    edges fork the flow:
+
+    * ``crisis``   → crisis_response → safety → END   (no retrieval, no LLM)
+    * ``direct``   → agent_loader → context_builder → … (skips retrieval)
+    * ``retrieve`` / ``tool`` → agent_loader → memory_retriever → …
+    """
     builder = StateGraph(AgentState)
 
     builder.add_node("input", input_node)
     builder.add_node("intent", intent_node)
     builder.add_node("emotion", emotion_node)
+    builder.add_node("router", router_node)
+    builder.add_node("crisis_response", crisis_response_node)
     builder.add_node("agent_loader", agent_loader_node)
     builder.add_node("memory_retriever", memory_retriever_node)
     builder.add_node("context_builder", context_builder_node)
@@ -289,13 +361,37 @@ def build_workflow():
     builder.add_edge(START, "input")
     builder.add_edge("input", "intent")
     builder.add_edge("intent", "emotion")
-    builder.add_edge("emotion", "agent_loader")
-    builder.add_edge("agent_loader", "memory_retriever")
+    builder.add_edge("emotion", "router")
+
+    # Router fork: crisis takes the deterministic fast-path; everything else
+    # proceeds into agent loading + generation.
+    builder.add_conditional_edges(
+        "router",
+        route_from_router,
+        {ROUTE_CRISIS: "crisis_response", "proceed": "agent_loader"},
+    )
+
+    # Crisis fast-path: deterministic response → safety → END (no LLM).
+    builder.add_edge("crisis_response", "safety")
+
+    # After loading the agent, `direct` turns skip retrieval; `retrieve`/`tool`
+    # turns enter the memory pipeline first.
+    builder.add_conditional_edges(
+        "agent_loader",
+        route_after_agent_loader,
+        {"direct": "context_builder", "retrieve": "memory_retriever"},
+    )
     builder.add_edge("memory_retriever", "context_builder")
     builder.add_edge("context_builder", "prompt_builder")
     builder.add_edge("prompt_builder", "llm")
     builder.add_edge("llm", "safety")
-    builder.add_edge("safety", "response_finalizer")
+
+    # Safety fork: crisis ends here (no writeback); normal turns finalize + learn.
+    builder.add_conditional_edges(
+        "safety",
+        route_after_safety,
+        {"end": END, "continue": "response_finalizer"},
+    )
     builder.add_edge("response_finalizer", "writeback")
     builder.add_edge("writeback", END)
 
@@ -340,4 +436,7 @@ workflow = build_workflow()
 
 def run_workflow(user_id: str, agent_id: str, session_id: str, message: str) -> AgentState:
     """Convenience entry point: run the full pipeline for one message."""
-    return workflow.invoke(initial_state(user_id, agent_id, session_id, message))
+    return workflow.invoke(
+        initial_state(user_id, agent_id, session_id, message),
+        config={"recursion_limit": RECURSION_LIMIT},
+    )
