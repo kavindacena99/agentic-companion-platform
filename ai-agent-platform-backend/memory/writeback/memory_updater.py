@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional
 from memory.collections import get_collection
 from memory.memory_retriever import search_memory
 from memory.memory_writer import store_memory, update_memory
+from memory.structured.canonical_store import get_canonical_store
 
 logger = logging.getLogger("agent_core")
 
@@ -68,10 +69,6 @@ def _find_by_attribute(
     ]
 
 
-def _is_duplicate_content(existing: Optional[str], candidate: str) -> bool:
-    return (existing or "").strip().lower() == (candidate or "").strip().lower()
-
-
 def decide_write(
     collection_name: str,
     user_id: str,
@@ -95,18 +92,25 @@ def decide_write(
     if attribute:
         base_metadata["attribute"] = attribute
 
-    # 1) Canonical facts: one value per attribute — update in place on change.
+    # 1) Canonical facts: the structured SQL store is the source of truth for
+    # the single current value per attribute. It decides insert/update/skip; the
+    # ChromaDB record is kept in sync so semantic recall still finds the fact.
     if canonical and attribute:
+        importance = fact.get("importance", "medium")
+        action = get_canonical_store().upsert(user_id, agent_id, attribute, content, importance)
         existing = _find_by_attribute(collection_name, user_id, agent_id, attribute)
+
+        if action == "unchanged":
+            logger.debug("Writeback skip (canonical duplicate): %s", content)
+            existing_id = existing[0]["id"] if existing else None
+            return {"action": "skip", "id": existing_id, "content": content, "reason": "duplicate"}
+
         if existing:
-            record = existing[0]
-            if _is_duplicate_content(record.get("content"), content):
-                logger.debug("Writeback skip (canonical duplicate): %s", content)
-                return {"action": "skip", "id": record["id"], "content": content, "reason": "duplicate"}
-            update_memory(collection_name, record["id"], content, base_metadata)
-            logger.info("Writeback update (%s changed): %r -> %r", attribute, record.get("content"), content)
-            return {"action": "update", "id": record["id"], "content": content, "reason": "contradiction"}
-        # No canonical record yet → fall through and insert (with the attribute).
+            update_memory(collection_name, existing[0]["id"], content, base_metadata)
+            logger.info("Writeback update (%s -> %r) synced to vector store", attribute, content)
+            return {"action": "update", "id": existing[0]["id"], "content": content, "reason": "contradiction"}
+        # SQL says inserted/updated but no vector record yet → fall through and
+        # insert one (with the attribute) so recall stays in sync.
 
     # 2) Deduplicate against similar existing memories (scoped similarity).
     else:

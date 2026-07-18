@@ -32,7 +32,7 @@ from graph.state import (
 from llm.llm_router import route_llm, route_tools
 from llm.reflection import REVISE, reflect_on_response
 from tools.registry import default_registry
-from memory.memory_service import get_relevant_memories
+from memory.memory_service import get_canonical_facts, get_relevant_memories
 from memory.query_planner import (
     best_relevance,
     grade_memories,
@@ -296,6 +296,15 @@ def route_after_grade(state: AgentState) -> str:
 def context_builder_node(state: AgentState) -> Dict[str, Any]:
     agent_config = state.get("agent_config") or {}
     context = dict(state.get("context") or {})
+
+    # Precise, always-current canonical facts from the structured SQL store —
+    # exact recall (name/location/occupation) that never depends on fuzzy search.
+    try:
+        canonical_facts = get_canonical_facts(state.get("user_id", ""), state.get("agent_id", ""))
+    except Exception as exc:  # noqa: BLE001 — structured lookup must never crash reasoning
+        logger.warning("Context builder: canonical lookup failed: %s", exc)
+        canonical_facts = {}
+
     context.update(
         {
             "agent_id": state.get("agent_id"),
@@ -309,11 +318,12 @@ def context_builder_node(state: AgentState) -> Dict[str, Any]:
             "user_memory": state.get("user_memory", []),
             "conversation_memory": state.get("conversation_memory", []),
             "agent_memory": state.get("agent_memory", []),
+            "canonical_facts": canonical_facts,
             # Reflection critique from a prior revise pass (None on first pass).
             "reflection": state.get("reflection"),
         }
     )
-    logger.debug("Context builder node: context assembled")
+    logger.debug("Context builder node: context assembled (%d canonical facts)", len(canonical_facts))
     return {"context": context}
 
 
@@ -343,6 +353,12 @@ def prompt_builder_node(state: AgentState) -> Dict[str, Any]:
     sections: List[str] = [f"[PERSONA]\n{persona}"]
     if behavior:
         sections.append(f"[BEHAVIOR RULES]\n{behavior}")
+
+    # Exact canonical facts first (precise SQL lookups) — these are authoritative.
+    canonical_facts = context.get("canonical_facts") or {}
+    if canonical_facts:
+        fact_lines = "\n".join(f"- {attr}: {value}" for attr, value in canonical_facts.items())
+        sections.append(f"[KNOWN FACTS]\n{fact_lines}")
 
     user_mem = _format_memories("What you know about the user", context.get("user_memory", []))
     if user_mem:

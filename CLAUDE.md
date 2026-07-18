@@ -153,12 +153,13 @@ POST /chat/     # {user_id, agent_id, session_id, message} -> {response, emotion
 | `DJANGO_SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS` | Django core |
 | `LOG_LEVEL` | Logging level (default `INFO`) |
 | `CHROMA_DB_PATH` | Local ChromaDB persistence path |
+| `CANONICAL_DB_PATH` | Local SQLite path for the structured canonical-fact store (default `./canonical_facts.sqlite3`) |
 | `MAIN_BACKEND_BASE_URL` | Main backend URL — agent-core calls `GET {base}/api/agents/{agent_id}/` for persona config |
 | `MAIN_BACKEND_SERVICE_KEY` / `MAIN_BACKEND_TIMEOUT` | Auth + timeout for the config call |
 | `OPENAI_API_KEY` / `OPENAI_MODEL` | OpenAI provider (default model `gpt-4o-mini`) |
 | `GEMINI_API_KEY` / `GEMINI_MODEL` | Gemini provider (default model `gemini-1.5-flash`) |
 
-agent-core stores its own Django metadata in a local **SQLite** `db.sqlite3`; long-term memory lives in **ChromaDB** (`CHROMA_DB_PATH`). No MySQL here.
+agent-core stores its own Django metadata in a local **SQLite** `db.sqlite3`; long-term memory lives in **ChromaDB** (`CHROMA_DB_PATH`). Exact, single-valued **canonical facts** (name, location, occupation) also live in a small separate **SQLite** store (`CANONICAL_DB_PATH`, `memory/structured/`) — vectors for fuzzy recall, a table for precise lookups, kept in sync by write-back. No MySQL here.
 
 ### The reasoning pipeline (LangGraph)
 
@@ -175,7 +176,7 @@ context_builder → prompt_builder → llm → safety → response_finalizer →
 |---|---|
 | `services/agent_loader.py` | Builds an `AgentProfile` by merging main-backend agent config (`GET /api/agents/{id}/`) with a local `agents/{agent_id}/behavior.txt` persona file. Config-driven — no hard-coded agents. |
 | `services/classifiers/` | `intent_classifier` (flags `crisis`) and `emotion_detector` |
-| `memory/` | RAG over **ChromaDB**. Four collections: `user_memory`, `conversation_memory`, `emotional_memory`, `agent_behavior_memory`. `memory_service.py` is the only public interface (`save_*`, `get_relevant_memories`) |
+| `memory/` | RAG over **ChromaDB**. Four collections: `user_memory`, `conversation_memory`, `emotional_memory`, `agent_behavior_memory`. `memory_service.py` is the only public interface (`save_*`, `get_relevant_memories`, `get_canonical_facts`). `memory/structured/` is a SQLite store of exact canonical facts (precise lookups) complementing the vectors |
 | `memory/writeback/` | Learns from each exchange: `fact_extractor`, `memory_classifier`, `summarizer`, `writeback_engine`. Runs as the final pipeline node |
 | `llm/llm_router.py` | Provider orchestrator with automatic fallback. OpenAI ↔ Gemini, chosen by quality/cost; `crisis` intent forces the highest-quality provider. Safe fallback text when all providers fail |
 | `safety/engine.py` | Deterministic, stateless, keyword-based **post-LLM** gatekeeper. Detects crisis/self-harm, emotional dependency, manipulation, isolation, and false "I'm a real human" claims; scores responses and rewrites unsafe ones with a grounding statement. Never relies on an LLM to be safe |
