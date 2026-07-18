@@ -97,6 +97,8 @@ class AgentState(TypedDict):
     tool_results: List[Dict[str, Any]]
     # Self-critique of a draft response produced by a reflection node.
     reflection: Optional[str]
+    # Reflection verdict on the current draft ("accept" / "revise").
+    reflect_verdict: Optional[str]
     # How many reflection passes have run — bounded by ``MAX_REFLECT_ITERS``.
     reflect_iters: int
     # Ordered decision trace: one entry per decision, for observability.

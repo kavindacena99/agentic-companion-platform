@@ -22,8 +22,9 @@ from typing import Any, Dict, List
 from langgraph.graph import END, START, StateGraph
 
 from graph.safety_node import safety_node
-from graph.state import MAX_RETRIEVE_ITERS, AgentState, append_trace
+from graph.state import MAX_REFLECT_ITERS, MAX_RETRIEVE_ITERS, AgentState, append_trace
 from llm.llm_router import route_llm
+from llm.reflection import REVISE, reflect_on_response
 from memory.memory_service import get_relevant_memories
 from memory.query_planner import (
     best_relevance,
@@ -44,9 +45,10 @@ from services.classifiers.route_selector import (
 
 logger = logging.getLogger("agent_core")
 
-# Safety ceiling on graph steps. The pipeline is short, but conditional/looping
-# edges mean a bug could, in principle, cycle — this bounds every invocation.
-RECURSION_LIMIT = 25
+# Safety ceiling on graph steps. Two bounded loops (retrieval + reflection) can
+# compound, so this sits comfortably above their worst-case combined length; the
+# real bounds are ``MAX_RETRIEVE_ITERS`` / ``MAX_REFLECT_ITERS``.
+RECURSION_LIMIT = 50
 
 
 # ----------------------------------------------------------------------
@@ -300,6 +302,8 @@ def context_builder_node(state: AgentState) -> Dict[str, Any]:
             "user_memory": state.get("user_memory", []),
             "conversation_memory": state.get("conversation_memory", []),
             "agent_memory": state.get("agent_memory", []),
+            # Reflection critique from a prior revise pass (None on first pass).
+            "reflection": state.get("reflection"),
         }
     )
     logger.debug("Context builder node: context assembled")
@@ -347,6 +351,15 @@ def prompt_builder_node(state: AgentState) -> Dict[str, Any]:
 
     sections.append(f"[UNDERSTANDING]\nDetected intent: {intent}\nDetected emotion: {emotion}")
     sections.append(f"[USER MESSAGE]\n{message}")
+
+    # On a revision pass, a prior draft was judged weak — steer the retry.
+    reflection = (context.get("reflection") or "").strip()
+    if reflection:
+        sections.append(
+            "[REVISION NOTE]\nYour previous draft was rejected. Fix this and try "
+            f"again: {reflection}"
+        )
+
     sections.append("[TASK]\nRespond in character, honoring the persona, behavior rules, and the user's emotional state.")
 
     prompt = "\n\n".join(sections)
@@ -369,6 +382,46 @@ def llm_node(state: AgentState) -> Dict[str, Any]:
     context["llm_ok"] = result.get("ok")
     logger.debug("LLM node: provider=%s ok=%s", result.get("provider"), result.get("ok"))
     return {"response": result.get("response", ""), "context": context}
+
+
+# ----------------------------------------------------------------------
+# NODE 8.5 — Reflection: cheap-model critic over the draft (quality, not safety)
+# ----------------------------------------------------------------------
+def reflect_node(state: AgentState) -> Dict[str, Any]:
+    """Judge the draft (grounded / in-persona / emotion-aware) → accept | revise.
+
+    Best-effort quality gate that fails open: any critic failure accepts the
+    draft. On ``revise`` it stores the critique so the next generation attempt
+    can act on it, and increments ``reflect_iters`` to bound the loop.
+    """
+    context = state.get("context") or {}
+    memories = list(state.get("retrieved") or []) or list(state.get("user_memory") or [])
+    result = reflect_on_response(
+        message=state.get("message", ""),
+        draft=state.get("response", "") or "",
+        memories=memories,
+        persona=context.get("persona_prompt", ""),
+        emotion=state.get("emotion"),
+    )
+    verdict = result.get("verdict", "accept")
+    iters = int(state.get("reflect_iters") or 0) + 1
+
+    update: Dict[str, Any] = {
+        "reflect_verdict": verdict,
+        "reflect_iters": iters,
+        "trace": append_trace(state, "reflect", verdict, iteration=iters),
+    }
+    # Carry the critique forward only when revising, so the prompt builder can
+    # inject it; clear it on accept so a stale note never leaks into the reply.
+    update["reflection"] = result.get("critique", "") if verdict == REVISE else None
+    return update
+
+
+def route_after_reflect(state: AgentState) -> str:
+    """Conditional-edge selector: revise (bounded) loops back, else go to safety."""
+    revise = state.get("reflect_verdict") == REVISE
+    has_budget = int(state.get("reflect_iters") or 0) < MAX_REFLECT_ITERS
+    return "revise" if (revise and has_budget) else "accept"
 
 
 # ----------------------------------------------------------------------
@@ -441,6 +494,7 @@ def build_workflow():
     builder.add_node("context_builder", context_builder_node)
     builder.add_node("prompt_builder", prompt_builder_node)
     builder.add_node("llm", llm_node)
+    builder.add_node("reflect", reflect_node)
     builder.add_node("safety", safety_node)
     builder.add_node("response_finalizer", response_finalizer_node)
     builder.add_node("writeback", writeback_node)
@@ -481,7 +535,16 @@ def build_workflow():
 
     builder.add_edge("context_builder", "prompt_builder")
     builder.add_edge("prompt_builder", "llm")
-    builder.add_edge("llm", "safety")
+
+    # Self-reflection loop: the critic judges the draft before the safety gate.
+    # `revise` loops back to re-retrieve + regenerate (bounded by reflect_iters);
+    # `accept` proceeds to the deterministic safety engine.
+    builder.add_edge("llm", "reflect")
+    builder.add_conditional_edges(
+        "reflect",
+        route_after_reflect,
+        {"revise": "plan_query", "accept": "safety"},
+    )
 
     # Safety fork: crisis ends here (no writeback); normal turns finalize + learn.
     builder.add_conditional_edges(
@@ -522,6 +585,7 @@ def initial_state(user_id: str, agent_id: str, session_id: str, message: str) ->
         tool_calls=[],
         tool_results=[],
         reflection=None,
+        reflect_verdict=None,
         reflect_iters=0,
         trace=[],
     )
