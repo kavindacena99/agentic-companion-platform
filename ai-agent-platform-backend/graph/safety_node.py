@@ -12,7 +12,7 @@ produced. It is provided standalone here; wiring it into the Step 6 pipeline
 import logging
 from typing import Any, Dict
 
-from graph.state import AgentState
+from graph.state import AgentState, append_trace
 from safety.engine import SafetyEngine
 
 logger = logging.getLogger("agent_core")
@@ -63,4 +63,9 @@ def safety_node(state: AgentState) -> Dict[str, Any]:
     else:
         safety_flags.setdefault("response_rewritten", False)
 
-    return {"response": final_response, "safety_flags": safety_flags}
+    decision = safety_flags.get("rewrite_reason") or "passed"
+    return {
+        "response": final_response,
+        "safety_flags": safety_flags,
+        "trace": append_trace(state, "safety", decision, score=round(score, 3)),
+    }
