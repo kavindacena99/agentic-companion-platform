@@ -19,6 +19,14 @@ def env_str(key: str, default: Optional[str] = None) -> Optional[str]:
     return value
 
 
+def env_required(key: str) -> str:
+    """Return the value for *key* or raise if unset/empty — fail-fast for secrets."""
+    value = os.environ.get(key)
+    if value is None or value == "":
+        raise RuntimeError(f"{key} must be set in the environment.")
+    return value
+
+
 def env_bool(key: str, default: bool = False) -> bool:
     """Return a boolean parsed from common truthy strings."""
     value = os.environ.get(key)

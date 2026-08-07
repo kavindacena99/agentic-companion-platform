@@ -35,6 +35,7 @@ def send_to_agent_core(payload: dict) -> dict:
     headers = {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
+        'X-Service-Key': settings.AGENT_CORE_SERVICE_KEY,
     }
 
     request = Request(url, data=body, headers=headers, method='POST')
