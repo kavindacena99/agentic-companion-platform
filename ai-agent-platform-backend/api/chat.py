@@ -13,6 +13,7 @@ from rest_framework import status
 from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.throttling import ScopedRateThrottle
 
 from services.chat_service import process_chat
 from services.schemas.message import ChatMessage
@@ -36,6 +37,8 @@ class ChatView(APIView):
     """Run a single chat turn through the full reasoning pipeline."""
 
     permission_classes = [HasValidServiceKey]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'chat'
 
     def post(self, request):
         try:

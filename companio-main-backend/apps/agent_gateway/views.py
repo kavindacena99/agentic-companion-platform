@@ -14,6 +14,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.throttling import ScopedRateThrottle
 
 from apps.agents.models import Agent
 
@@ -25,6 +26,8 @@ logger = logging.getLogger(__name__)
 
 class ChatGatewayView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'chat'
 
     def post(self, request):
         data = request.data if isinstance(request.data, dict) else {}
