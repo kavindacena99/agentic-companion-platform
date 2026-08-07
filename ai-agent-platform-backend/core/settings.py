@@ -9,7 +9,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from core.env import env_bool, env_list, env_str
+from core.env import env_bool, env_list, env_required, env_str
 
 # Build paths inside the project like this: BASE_DIR / "subdir".
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,11 +21,11 @@ load_dotenv(BASE_DIR / ".env")
 # ---------------------------------------------------------------------------
 # Core security / debug
 # ---------------------------------------------------------------------------
-SECRET_KEY = env_str("DJANGO_SECRET_KEY", default="django-insecure-change-me")
+SECRET_KEY = env_required("DJANGO_SECRET_KEY")
 
-DEBUG = env_bool("DEBUG", default=True)
+DEBUG = env_bool("DEBUG", default=False)
 
-ALLOWED_HOSTS = env_list("ALLOWED_HOSTS", default=["*"])
+ALLOWED_HOSTS = env_list("ALLOWED_HOSTS", default=["127.0.0.1", "localhost"])
 
 
 # ---------------------------------------------------------------------------
