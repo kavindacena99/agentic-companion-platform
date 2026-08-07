@@ -148,6 +148,7 @@ FREE_DAILY_MESSAGE_LIMIT = env_int('FREE_DAILY_MESSAGE_LIMIT', 20)
 # agent-core (AI Agent Platform Backend) — used by the chat gateway endpoint.
 AGENT_CORE_URL = os.getenv('AGENT_CORE_URL', 'http://localhost:8001')
 AGENT_CORE_TIMEOUT_SECONDS = env_int('AGENT_CORE_TIMEOUT_SECONDS', 30)
+AGENT_CORE_SERVICE_KEY = os.getenv('AGENT_CORE_SERVICE_KEY', '')
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -176,3 +177,29 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=env_int('JWT_REFRESH_TOKEN_DAYS', 7)),
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
+
+# ---------------------------------------------------------------------------
+# Production security hardening
+#
+# These are toggled by NOT being in DEBUG mode. In development (DEBUG=True)
+# they are inactive so local HTTP works normally.
+# ---------------------------------------------------------------------------
+if not DEBUG:
+    # HTTPS / HSTS
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
+    # Cookie security
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    CSRF_COOKIE_HTTPONLY = True
+
+    # Miscellaneous headers
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_BROWSER_XSS_FILTER = True
+    X_FRAME_OPTIONS = 'DENY'
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
