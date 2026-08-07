@@ -45,6 +45,12 @@ class ChatGatewayView(APIView):
                 {'error': f'Missing required field(s): {", ".join(missing)}.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+            
+        if len(str(message)) > 4000:
+            return Response(
+                {'error': 'Message exceeds maximum length of 4000 characters.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         # --- STEP 1: validate agent exists and is active ---
         if not Agent.objects.filter(key=agent_id, is_enabled=True).exists():
