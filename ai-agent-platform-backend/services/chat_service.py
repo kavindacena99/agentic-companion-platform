@@ -28,7 +28,7 @@ _TRUE_VALUES = {"1", "true", "yes", "on", "y", "t"}
 
 def _trace_exposure_enabled() -> bool:
     """Whether the service may return decision traces (env-gated for prod safety)."""
-    return os.getenv("AGENT_CORE_EXPOSE_TRACE", "true").strip().lower() in _TRUE_VALUES
+    return os.getenv("AGENT_CORE_EXPOSE_TRACE", "false").strip().lower() in _TRUE_VALUES
 
 
 def process_chat(message: ChatMessage) -> Dict[str, Any]:
