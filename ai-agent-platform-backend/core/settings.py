@@ -27,6 +27,9 @@ DEBUG = env_bool("DEBUG", default=True)
 
 ALLOWED_HOSTS = env_list("ALLOWED_HOSTS", default=["*"])
 
+# Shared secret for service-to-service authentication (main backend → agent-core).
+AGENT_CORE_SERVICE_KEY = env_str("AGENT_CORE_SERVICE_KEY", default="")
+
 
 # ---------------------------------------------------------------------------
 # Application definition
