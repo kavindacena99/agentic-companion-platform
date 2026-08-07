@@ -17,6 +17,7 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.throttling import ScopedRateThrottle
 
 from apps.agents.models import Agent
 
@@ -30,6 +31,8 @@ User = get_user_model()
 
 class ChatGatewayView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'chat'
 
     def post(self, request):
         data = request.data if isinstance(request.data, dict) else {}
