@@ -20,7 +20,7 @@ def env_str(key: str, default: Optional[str] = None) -> Optional[str]:
 
 
 def env_required(key: str) -> str:
-    """Return the value for *key* or raise if unset/empty - fail-fast for secrets."""
+    """Return the value for *key* or raise if unset/empty — fail-fast for secrets."""
     value = os.environ.get(key)
     if value is None or value == "":
         raise RuntimeError(f"{key} must be set in the environment.")
